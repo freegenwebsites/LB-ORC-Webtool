@@ -1,55 +1,98 @@
 // File: C:\Users\samky\Downloads\Obsidian Git vault\LB-ORC-Webtool\backend\server.js
+// MODIFIED TO HANDLE MULTIPLE LLM BACKENDS
 
-console.log("--- Attempting to start server.js ---"); // ADD THIS LINE FOR DEBUGGING
-
-require('dotenv').config(); // Loads environment variables from .env file into process.env
+require('dotenv').config();
 const express = require('express');
-const fetch = require('node-fetch'); // Or use global.fetch if Node 18+ and you omit this from npm install
+const fetch = require('node-fetch');
 const cors = require('cors');
 
-console.log("--- Basic modules required ---"); // DEBUGGING
+console.log("--- Attempting to start multi-LLM backend server.js ---");
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Use port from .env, or 3001 as default
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY; // Get Google API key from .env
+const PORT = process.env.PORT || 3001;
 
-console.log(`--- PORT configured: ${PORT}, API Key loaded: ${GOOGLE_API_KEY ? 'Yes' : 'No!!!'} ---`); // DEBUGGING
+// --- API Keys and Model Configs ---
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+// Add other API keys if needed, e.g., OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// --- IMPORTANT: Choose the correct Gemini model and construct the endpoint ---
-const MODEL_NAME = 'gemini-pro'; // Common options: 'gemini-pro', 'gemini-1.0-pro', 'gemini-1.5-pro-latest'
-const GOOGLE_API_URL_BASE = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
+const LLM_CONFIGS = {
+    local_ollama_Qwen3: {
+        apiUrl: 'http://localhost:11434/v1/chat/completions',
+        modelName: 'qwen3:8b', // Ensure this model is pulled in Ollama
+        type: 'openai_compatible', // Indicates OpenAI-like request/response
+        requiresApiKey: false
+    },
+    google_gemini_pro: {
+        apiUrlBase: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+        modelName: 'gemini-pro',
+        type: 'google_gemini',
+        requiresApiKey: true,
+        getApiKey: () => GOOGLE_API_KEY
+    }
+    // Example for OpenAI (if you add it later)
+    // openai_gpt35_turbo: {
+    //     apiUrl: 'https://api.openai.com/v1/chat/completions',
+    //     modelName: 'gpt-3.5-turbo',
+    //     type: 'openai_compatible',
+    //     requiresApiKey: true,
+    //     getApiKey: () => OPENAI_API_KEY
+    // }
+};
 
-console.log(`--- Google API Base URL: ${GOOGLE_API_URL_BASE} ---`); // DEBUGGING
+console.log(`--- PORT configured: ${PORT} ---`);
+if (GOOGLE_API_KEY) console.log("Google API Key Loaded."); else console.warn("Google API Key NOT loaded from .env");
+// if (OPENAI_API_KEY) console.log("OpenAI API Key Loaded.");
 
-// --- Middleware Setup ---
-app.use(cors()); 
-app.use(express.json()); 
+app.use(cors());
+app.use(express.json());
+console.log("--- Middleware configured ---");
 
-console.log("--- Middleware configured ---"); // DEBUGGING
-
-// --- API Endpoint for LLM Structuring ---
 app.post('/api/llm-structure', async (req, res) => {
-    console.log(`[${new Date().toISOString()}] POST /api/llm-structure received.`);
+    const { rawText, llmPrompt, selectedModel } = req.body; // Extract selectedModel
 
-    const { rawText, llmPrompt } = req.body;
+    console.log(`[${new Date().toISOString()}] POST /api/llm-structure. Selected Model: ${selectedModel}`);
 
-    if (!rawText || !llmPrompt) {
-        console.error('Validation Error: rawText and llmPrompt are required.');
-        return res.status(400).json({ error: 'rawText and llmPrompt are required in the request body.' });
-    }
-    if (!GOOGLE_API_KEY) {
-        console.error('Server Configuration Error: GOOGLE_API_KEY is not configured on the server.');
-        return res.status(500).json({ error: 'Google API key not configured on server. Contact administrator.' });
+    if (!rawText || !llmPrompt || !selectedModel) {
+        return res.status(400).json({ error: 'rawText, llmPrompt, and selectedModel are required.' });
     }
 
-    const fullGoogleApiUrl = `${GOOGLE_API_URL_BASE}?key=${GOOGLE_API_KEY}`;
+    const config = LLM_CONFIGS[selectedModel];
+    if (!config) {
+        return res.status(400).json({ error: `Unsupported model selected: ${selectedModel}` });
+    }
 
-    const requestPayload = {
-        contents: [
-            {
-                parts: [
-                    {
-                        text: `You are an expert data extraction assistant. Your task is to process the given text, which is an exam paper, according to the user's specific instructions and return a Markdown table.
+    if (config.requiresApiKey) {
+        const apiKey = config.getApiKey();
+        if (!apiKey) {
+            console.error(`API Key for ${selectedModel} is not configured on the server.`);
+            return res.status(500).json({ error: `API Key for ${selectedModel} not configured.` });
+        }
+    }
+
+    let apiUrl = config.apiUrl;
+    let requestPayload;
+    let headers = { 'Content-Type': 'application/json' };
+
+    // --- Construct Payload and Headers based on LLM type ---
+    if (config.type === 'openai_compatible') {
+        // For Ollama or OpenAI
+        requestPayload = {
+            model: config.modelName,
+            messages: [
+                { role: "system", content: "You are an expert data extraction assistant. Your task is to process the given text, which is an exam paper, according to the user's specific instructions and return a Markdown table. Ensure the output is ONLY the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (```), format it as a code block, or use any formatting other than the plain text Markdown table structure." },
+                { role: "user", content: `${llmPrompt}\n\nHere is the exam paper text to structure:\n\n---\n${rawText}\n---` }
+            ],
+            stream: false,
+            temperature: 0.1
+        };
+        if (config.requiresApiKey && selectedModel.startsWith('openai_')) { // Example for actual OpenAI
+             headers['Authorization'] = `Bearer ${config.getApiKey()}`;
+        }
+    } else if (config.type === 'google_gemini') {
+        apiUrl = `${config.apiUrlBase}?key=${config.getApiKey()}`; // API key in URL for this Google API
+        requestPayload = {
+            contents: [{ parts: [{
+                text: `You are an expert data extraction assistant. Your task is to process the given text, which is an exam paper, according to the user's specific instructions and return a Markdown table.
 ${llmPrompt}
 
 Here is the exam paper text to structure:
@@ -57,91 +100,69 @@ Here is the exam paper text to structure:
 ${rawText}
 ---
 Ensure the output is ONLY the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (\`\`\`), format it as a code block, or use any formatting other than the plain text Markdown table structure.`
-                    }
-                ]
-            }
-        ],
-        generationConfig: {
-            temperature: 0.1, 
-        },
-    };
+            }]}],
+            generationConfig: { temperature: 0.1 }
+        };
+    } else {
+        return res.status(500).json({ error: `Configuration error for model type: ${config.type}` });
+    }
 
+    // --- Make the API Call ---
     try {
-        console.log(`Sending request to Google Generative AI API (model: ${MODEL_NAME}). URL: ${GOOGLE_API_URL_BASE}`);
+        console.log(`Sending request to ${selectedModel} (Model: ${config.modelName}). URL: ${apiUrl.split('?')[0]}`); // Log base URL
         
-        const googleResponse = await fetch(fullGoogleApiUrl, {
+        const llmApiResponse = await fetch(apiUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: headers,
             body: JSON.stringify(requestPayload)
         });
+        const responseData = await llmApiResponse.json();
 
-        const responseData = await googleResponse.json();
-
-        if (!googleResponse.ok) {
-            console.error('Google API Error Status:', googleResponse.status);
-            console.error('Google API Error Response:', JSON.stringify(responseData, null, 2));
-            return res.status(googleResponse.status).json({
-                error: 'Error from Google Generative AI API.',
-                details: responseData.error || { message: `Google API returned status ${googleResponse.status}` }
+        if (!llmApiResponse.ok) {
+            console.error(`${selectedModel} API Error Status:`, llmApiResponse.status);
+            console.error(`${selectedModel} API Error Response:`, JSON.stringify(responseData, null, 2));
+            return res.status(llmApiResponse.status).json({
+                error: `Error from ${selectedModel} API.`,
+                details: responseData.error || responseData || { message: `${selectedModel} API returned status ${llmApiResponse.status}` }
             });
         }
 
+        // --- Parse Response based on LLM type ---
         let llmOutput = null;
-        if (responseData.candidates && responseData.candidates.length > 0 &&
-            responseData.candidates[0].content && responseData.candidates[0].content.parts &&
-            responseData.candidates[0].content.parts.length > 0 &&
-            responseData.candidates[0].content.parts[0].text) {
-            llmOutput = responseData.candidates[0].content.parts[0].text;
-        } else if (responseData.promptFeedback && responseData.promptFeedback.blockReason) {
-            console.error('Content blocked by Google API due to safety settings or other reason:', responseData.promptFeedback.blockReason);
-            console.error('Full Google Response (for debugging block):', JSON.stringify(responseData, null, 2));
-            return res.status(400).json({ 
-                error: 'Content generation blocked by API.',
-                details: {
-                    message: `Blocked due to: ${responseData.promptFeedback.blockReason}`,
-                    safetyRatings: responseData.promptFeedback.safetyRatings || "N/A"
-                }
-            });
+        if (config.type === 'openai_compatible') {
+            llmOutput = responseData.choices && responseData.choices[0] && responseData.choices[0].message && responseData.choices[0].message.content;
+        } else if (config.type === 'google_gemini') {
+            if (responseData.candidates && responseData.candidates[0]?.content?.parts?.[0]?.text) {
+                llmOutput = responseData.candidates[0].content.parts[0].text;
+            } else if (responseData.promptFeedback?.blockReason) {
+                console.error(`Content blocked by ${selectedModel} API:`, responseData.promptFeedback.blockReason);
+                return res.status(400).json({ error: 'Content generation blocked by API.', details: responseData.promptFeedback });
+            }
         }
 
         if (llmOutput) {
-            console.log(`Successfully received response from Google. Output length: ${llmOutput.length} chars.`);
-            res.json({ markdownTable: llmOutput.trim() }); 
+            console.log(`Successfully received response from ${selectedModel}. Output length: ${llmOutput.length} chars.`);
+            res.json({ markdownTable: llmOutput.trim() });
         } else {
-            console.error('Unexpected Google API response structure or empty content. No text content found.');
-            console.error('Full Google Response (for debugging missing content):', JSON.stringify(responseData, null, 2));
-            res.status(500).json({
-                error: 'Unexpected response structure from Google or no content generated.',
-                details: responseData
-            });
+            console.error(`Unexpected ${selectedModel} API response structure. No content found.`);
+            console.error(`Full ${selectedModel} Response:`, JSON.stringify(responseData, null, 2));
+            res.status(500).json({ error: `Unexpected response structure from ${selectedModel}.`, details: responseData });
         }
 
     } catch (error) {
-        console.error('Error calling Google Generative AI service:', error.message);
-        console.error(error.stack); 
-        res.status(500).json({ error: 'Failed to call LLM service due to an internal server error.', details: { message: error.message } });
+        console.error(`Error calling ${selectedModel} service:`, error.message);
+        if (error.code === 'ECONNREFUSED' && config.apiUrl.includes('localhost')) {
+            return res.status(503).json({ error: `Local LLM (${selectedModel}) service unavailable. Is it running?` });
+        }
+        res.status(500).json({ error: `Failed to call ${selectedModel} service.`, details: { message: error.message } });
     }
 });
 
-// --- Default route for testing if the server is up ---
 app.get('/', (req, res) => {
-    console.log(`[${new Date().toISOString()}] GET / received. Server is up.`); // DEBUGGING
-    res.send('LLM Proxy Server (Google Gemini) is running!');
+    res.send('Multi-LLM Proxy Server is running!');
 });
 
-// --- Start the Server ---
-try { // ADDED TRY-CATCH AROUND LISTEN
-    app.listen(PORT, () => {
-        console.log(`LLM Proxy server (Google Gemini) listening on http://localhost:${PORT}`);
-        if (!GOOGLE_API_KEY) {
-            console.warn('WARNING: GOOGLE_API_KEY is not set in the environment variables. API calls will fail.');
-        } else {
-            console.log(`Using Google API Key starting with: ${GOOGLE_API_KEY.substring(0, 4)}... and ending with ...${GOOGLE_API_KEY.substring(GOOGLE_API_KEY.length - 4)}`);
-        }
-    });
-    console.log("--- app.listen called, server should be starting ---"); // DEBUGGING
-} catch (e) {
-    console.error("!!! FATAL ERROR during app.listen !!!", e); // DEBUGGING
-}
+app.listen(PORT, () => {
+    console.log(`Multi-LLM Proxy server listening on http://localhost:${PORT}`);
+    console.log("Available LLM configurations:", Object.keys(LLM_CONFIGS));
+});
