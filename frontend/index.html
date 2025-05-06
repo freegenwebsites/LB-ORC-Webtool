@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Paper Transcription Tool (LLM Concept)</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .drop-area {
+            border: 2px dashed #9ca3af;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border 0.3s ease, background-color 0.3s ease;
+            background-color: #f9fafb;
+        }
+        .drop-area:hover, .drop-area.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        th {
+            position: sticky;
+            top: 0;
+            background-color: #e5e7eb; /* gray-200 */
+            z-index: 10;
+        }
+        button {
+            transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        button:hover:not(:disabled) {
+             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .table-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            background-color: white;
+        }
+        .alert {
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        #debugToggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background-color: rgba(229, 231, 235, 0.8);
+            backdrop-filter: blur(4px);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            border: 1px solid #d1d5db;
+        }
+        #ocrPreviewCanvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+            border: 1px solid #d1d5db;
+        }
+        .log-area {
+            font-family: 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", monospace;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            color: #374151;
+        }
+        .main-content-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        @media (min-width: 1024px) {
+            .main-content-grid {
+                grid-template-columns: 1fr 2fr;
+            }
+        }
+        /* Style for the LLM Prompt display */
+        #llmPromptDisplay {
+            background-color: #eef2ff; /* indigo-50 */
+            border: 1px solid #c7d2fe; /* indigo-200 */
+            border-radius: 0.375rem;
+            padding: 1rem;
+            font-size: 0.875rem; /* text-sm */
+            color: #4338ca; /* indigo-700 */
+            white-space: pre-wrap; /* Preserve formatting */
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Exam Paper Transcription Tool (LLM Concept)</h1>
+
+        <div class="main-content-grid">
+            <div class="order-2 lg:order-1 bg-white rounded-lg shadow-md p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">LLM Structuring Prompt</h3>
+                    <div id="llmPromptDisplay" class="log-area">
+                        The prompt for the LLM will be displayed here.
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Live OCR Output (Current Page)</h3>
+                    <div id="liveOcrText" class="log-area h-64 overflow-y-auto">
+                        Waiting for page processing...
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Full Transcription Log (Input to LLM)</h3>
+                    <div id="transcriptionLog" class="log-area h-96 overflow-y-auto">
+                        Log will appear here...
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-1 lg:order-2 space-y-6">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Upload Exam Paper</h2>
+                    <div id="dropArea" class="drop-area mb-4">
+                        <p class="text-gray-600 mb-2">Drop your PDF file here or click to browse</p>
+                        <p class="text-sm text-gray-500">Supported format: PDF</p>
+                        <input type="file" id="fileInput" accept=".pdf" class="hidden">
+                    </div>
+                    <div id="fileInfo" class="mb-4 hidden flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                        <p class="text-sm font-medium text-gray-700">Selected file: <span id="fileName" class="text-blue-600 font-semibold"></span></p>
+                        <button id="removeFile" class="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
+                    </div>
+                    <div id="ocrOptions" class="mb-4 border-t pt-4 mt-4">
+                         <h3 class="text-md font-semibold mb-2 text-gray-600">Processing Settings</h3>
+                         <div class="form-check flex items-center space-x-2 mb-2">
+                            <input class="form-check-input h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" type="checkbox" id="forceOcrCheckbox">
+                            <label class="form-check-label text-sm text-gray-700" for="forceOcrCheckbox">
+                                Force OCR processing (for scanned documents)
+                            </label>
+                        </div>
+                         <div class="form-check flex items-center space-x-2 mb-2"> <input class="form-check-input h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" type="checkbox" id="enableLayoutAnalysisCheckbox">
+                            <label class="form-check-label text-sm text-gray-700" for="enableLayoutAnalysisCheckbox">
+                                Enable Layout Analysis (Logs detailed OCR data)
+                            </label>
+                        </div>
+                        <div class="form-check flex items-center space-x-2 ml-4"> <input class="form-check-input h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" type="checkbox" id="showOcrBlocksCheckbox" disabled> <label class="form-check-label text-sm text-gray-700" for="showOcrBlocksCheckbox">
+                                Show OCR Detected Blocks (in Preview)
+                            </label>
+                        </div>
+                    </div>
+                    <div id="memoryWarning" class="alert bg-yellow-100 border border-yellow-300 text-yellow-800 text-sm p-3 rounded-md mb-4 hidden">
+                        <p><strong>Warning:</strong> Your device has limited memory. OCR processing might be slow or unstable.</p>
+                    </div>
+                    <div id="ocrUnsupported" class="alert bg-red-100 border border-red-300 text-red-700 text-sm p-3 rounded-md mb-4 hidden">
+                        <p><strong>Error:</strong> OCR processing requires WebAssembly support, which is not available in your browser.</p>
+                    </div>
+                    <button id="transcribeBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50 w-full text-lg">
+                        Transcribe & Structure with LLM
+                    </button>
+                </div>
+
+                <div id="ocrPreviewContainer" class="bg-white rounded-lg shadow-md p-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2 text-center">OCR Page Preview</h3>
+                    <p id="ocrPreviewPageInfo" class="text-sm text-gray-600 text-center mb-2">Page X of Y</p>
+                    <div class="relative w-full h-auto border border-gray-300 rounded overflow-hidden bg-white">
+                        <canvas id="ocrPreviewCanvas"></canvas>
+                    </div>
+                </div>
+
+                <div id="processingIndicator" class="alert bg-blue-100 border border-blue-300 text-blue-800 my-4 hidden">
+                    <div class="flex items-center">
+                        <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500 mr-3" role="status">
+                            <span class="sr-only">Processing...</span>
+                        </div>
+                        <div>
+                            <p class="font-semibold mb-0" id="processingStatus">Processing your PDF...</p>
+                            <p class="text-sm mb-0 text-blue-700" id="processingSubStatus">Initializing...</p>
+                        </div>
+                    </div>
+                    <div id="progressBarContainer" class="mt-2"></div>
+                </div>
+
+                <div id="errorMessage" class="alert bg-red-100 border border-red-400 text-red-700 hidden">
+                    <p></p>
+                </div>
+
+                <div id="resultSection" class="hidden bg-white rounded-lg shadow-md p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-2 sm:mb-0">2. Structured Results (from LLM)</h2>
+                        <div class="space-x-2 flex">
+                            <button id="exportCsv" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded text-sm disabled:opacity-50" disabled>
+                                Export CSV
+                            </button>
+                            <button id="exportExcel" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded text-sm disabled:opacity-50" disabled>
+                                Export Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="resultTable" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">Section</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">Q.X and Question</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">Answer</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">Instructions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultBody" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                        </table>
+                    </div>
+                     <div id="noResultsMessage" class="text-center py-4 text-gray-500 hidden">
+                        No data could be structured by the LLM.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.worker.min.js';
+
+        let DEBUG_MODE = true; // Set to true for detailed console logs
+        let selectedFile = null;
+        let extractedData = [];
+        let currentPdfFile = null;
+
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileNameElem = document.getElementById('fileName');
+        const removeFile = document.getElementById('removeFile');
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const processingIndicator = document.getElementById('processingIndicator');
+        const processingStatus = document.getElementById('processingStatus');
+        const processingSubStatus = document.getElementById('processingSubStatus');
+        const progressBarContainer = document.getElementById('progressBarContainer');
+        const resultSection = document.getElementById('resultSection');
+        const resultBody = document.getElementById('resultBody');
+        const noResultsMessage = document.getElementById('noResultsMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        const exportCsv = document.getElementById('exportCsv');
+        const exportExcel = document.getElementById('exportExcel');
+        const forceOcrCheckbox = document.getElementById('forceOcrCheckbox');
+        const enableLayoutAnalysisCheckbox = document.getElementById('enableLayoutAnalysisCheckbox');
+        const showOcrBlocksCheckbox = document.getElementById('showOcrBlocksCheckbox');
+        const ocrOptionsDiv = document.getElementById('ocrOptions');
+        const memoryWarningDiv = document.getElementById('memoryWarning');
+        const ocrUnsupportedDiv = document.getElementById('ocrUnsupported');
+        const ocrPreviewContainer = document.getElementById('ocrPreviewContainer');
+        const ocrPreviewCanvas = document.getElementById('ocrPreviewCanvas');
+        const ocrPreviewPageInfo = document.getElementById('ocrPreviewPageInfo');
+        const liveOcrTextEl = document.getElementById('liveOcrText');
+        const transcriptionLogEl = document.getElementById('transcriptionLog');
+        const llmPromptDisplayEl = document.getElementById('llmPromptDisplay');
+
+        // --- LLM Prompt (as provided by user) ---
+        const USER_LLM_PROMPT = `Please extract information from the provided PDF document (an exam paper with an accompanying answer key) and organize it into a table with exactly four columns.
+The required columns are:
+Section: The name of the section from the document (e.g., 'Section A: Grammar', 'Section I: Comprehension (Open-ended)').
+Q.X and Question: The question number (e.g., 'Q.1', 'Q.71') followed by the full text of the question itself, if one is present on that line or clearly associated with that number. If the row represents a general section header or instruction line without a specific question number, use '-'.
+Answer: The corresponding answer for the question number, taken directly from the provided answer key, with no explanation. If the row does not have a specific question/answer associated with it, use '-'.
+Instructions: Populate this column with the actual, specific instruction text found in the document that is most relevant to that row or the block of questions/tasks the row belongs to. Do not just write the word 'Instruction'. For example, use text like 'Shade your answer (1, 2, 3 or 4) on the Optical Answer Sheet.' or 'Fill in each blank with a suitable word.' or 'Read this passage carefully and answer the questions 71 to 80.' Apply the relevant instruction text logically to the rows it pertains to.
+The final output must be formatted as a plain text Markdown table.
+Crucially: Ensure the output is only the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (\`\`\`), format it as a code block, or use any formatting other than the plain text Markdown table structure.`;
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (DEBUG_MODE) console.log("DOM loaded");
+            checkOcrCompatibility();
+            transcribeBtn.disabled = true;
+            setupDebugToggle();
+            initializeOcrPreviewCanvas();
+            resetLogAreas();
+            llmPromptDisplayEl.textContent = USER_LLM_PROMPT; // Display the prompt
+
+            enableLayoutAnalysisCheckbox.addEventListener('change', function() {
+                showOcrBlocksCheckbox.disabled = !this.checked;
+                if (!this.checked) showOcrBlocksCheckbox.checked = false;
+            });
+             if (!enableLayoutAnalysisCheckbox.checked) showOcrBlocksCheckbox.disabled = true;
+        });
+
+        function initializeOcrPreviewCanvas() {
+            const ctx = ocrPreviewCanvas.getContext('2d');
+            ocrPreviewCanvas.width = 600; ocrPreviewCanvas.height = 400;
+            ctx.fillStyle = "#eee"; ctx.fillRect(0, 0, 600, 400);
+            ctx.fillStyle = "#ccc"; ctx.textAlign = "center"; ctx.font = "16px Inter";
+            ctx.fillText("OCR Preview Area", 300, 200);
+        }
+
+        function resetLogAreas() {
+            if (liveOcrTextEl) liveOcrTextEl.textContent = 'Waiting for page processing...';
+            if (transcriptionLogEl) transcriptionLogEl.textContent = 'Full transcribed text (input to LLM) will appear here...\n';
+        }
+
+        function appendToLog(message, isFullLog = false) {
+            if (!transcriptionLogEl) return;
+            if (isFullLog) { // For setting the entire log at once
+                transcriptionLogEl.textContent = message;
+            } else { // For appending page by page during OCR
+                if (transcriptionLogEl.textContent.startsWith('Full transcribed text')) {
+                    transcriptionLogEl.textContent = ''; // Clear initial message
+                }
+                transcriptionLogEl.textContent += message;
+            }
+            transcriptionLogEl.scrollTop = transcriptionLogEl.scrollHeight;
+        }
+        
+        function updateLiveOcrTextDisplay(pageData, currentPage, totalPages) {
+            if (!liveOcrTextEl) return;
+            if (!pageData) {
+                liveOcrTextEl.textContent = `Page ${currentPage}/${totalPages}: No text data for live preview.`;
+                return;
+            }
+            let displayText = `Page ${currentPage} of ${totalPages} - Live Output:\n====================================\n`;
+            const textToDisplay = pageData.text || (typeof pageData === 'string' ? pageData : "No text extracted.");
+            displayText += textToDisplay;
+            if (pageData.blocks && showOcrBlocksCheckbox.checked && enableLayoutAnalysisCheckbox.checked) {
+                displayText += `\n\n--- Detected Blocks (Top ${Math.min(5, pageData.blocks.length)}) --- (Conf: ${pageData.confidence?.toFixed(0) || 'N/A'}%)\n`;
+                pageData.blocks.slice(0, 5).forEach((block, index) => {
+                    displayText += `Block ${index + 1} (conf: ${block.confidence?.toFixed(0) || 'N/A'}%): "${(block.text || '').substring(0, 70).replace(/\n/g, ' ')}..."\n`;
+                });
+                if (pageData.blocks.length > 5) displayText += `... and ${pageData.blocks.length - 5} more blocks.\n`;
+            }
+            liveOcrTextEl.textContent = displayText;
+            liveOcrTextEl.scrollTop = 0;
+        }
+
+        function setupDebugToggle() {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || DEBUG_MODE) { // Show if debug_mode true
+                const btn = document.createElement('button'); btn.id = 'debugToggle';
+                btn.textContent = `Debug: ${DEBUG_MODE ? 'ON' : 'OFF'}`;
+                btn.onclick = () => { DEBUG_MODE = !DEBUG_MODE; btn.textContent = `Debug: ${DEBUG_MODE ? 'ON' : 'OFF'}`; console.log('Debug Mode:', DEBUG_MODE); };
+                document.body.appendChild(btn);
+            }
+        }
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false));
+        ['dragenter', 'dragover'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.add('active'), false));
+        ['dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.remove('active'), false));
+        dropArea.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
+        dropArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            if (DEBUG_MODE) console.log("handleFiles:", files);
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                currentPdfFile = files[0]; selectedFile = files[0];
+                fileInfo.classList.remove('hidden'); fileNameElem.textContent = files[0].name;
+                transcribeBtn.disabled = false; hideError(); resultSection.classList.add('hidden');
+                resultBody.innerHTML = ''; noResultsMessage.classList.add('hidden');
+                exportCsv.disabled = true; exportExcel.disabled = true;
+                ocrPreviewContainer.classList.add('hidden'); resetLogAreas();
+            } else { showError('Please select a PDF file.'); resetFileInput(); }
+        }
+        removeFile.addEventListener('click', resetFileInput);
+        function resetFileInput() {
+            fileInput.value = ''; selectedFile = null; currentPdfFile = null;
+            fileInfo.classList.add('hidden'); fileNameElem.textContent = '';
+            transcribeBtn.disabled = true; hideError(); resultSection.classList.add('hidden');
+            resultBody.innerHTML = ''; noResultsMessage.classList.add('hidden');
+            exportCsv.disabled = true; exportExcel.disabled = true;
+            hideOcrPreview(); resetLogAreas();
+        }
+
+        function showProcessingIndicator(statusMsg, subStatus = '', progress = null) {
+            processingStatus.textContent = statusMsg; processingSubStatus.textContent = subStatus;
+            processingIndicator.classList.remove('hidden'); transcribeBtn.disabled = true;
+            const bar = document.getElementById('processingProgressBar'); if (bar) bar.remove();
+            if (progress !== null && progress >= 0) {
+                const pBar = document.createElement('div'); pBar.id = 'processingProgressBar';
+                pBar.className = 'bg-blue-200 rounded h-2 mt-2 overflow-hidden';
+                pBar.innerHTML = `<div class="bg-blue-500 h-full rounded" style="width:${progress}%"></div>`;
+                progressBarContainer.appendChild(pBar);
+                if (subStatus && !subStatus.includes('%') && progress > 0) processingSubStatus.textContent = `${subStatus} (${progress.toFixed(0)}%)`;
+            } else progressBarContainer.innerHTML = '';
+        }
+        function hideProcessingIndicator() {
+            processingIndicator.classList.add('hidden'); progressBarContainer.innerHTML = '';
+            if (currentPdfFile) transcribeBtn.disabled = false;
+        }
+        function showError(msg) {
+            const dMsg = msg || 'An error occurred.';
+            errorMessage.querySelector('p').textContent = dMsg; errorMessage.classList.remove('hidden');
+            errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (DEBUG_MODE) console.error("showError:", dMsg);
+        }
+        function hideError() { errorMessage.classList.add('hidden'); errorMessage.querySelector('p').textContent = ''; }
+
+        function showOcrPreview(imgUrl, current, total, ocrBlocksData = null) {
+            if (DEBUG_MODE) console.log(`OCR preview page ${current}/${total}`, ocrBlocksData ? "with blocks" : "");
+            const canvas = ocrPreviewCanvas, ctx = canvas.getContext('2d'), img = new Image();
+            img.onload = () => {
+                canvas.width = img.width; canvas.height = img.height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
+                if (showOcrBlocksCheckbox.checked && enableLayoutAnalysisCheckbox.checked && ocrBlocksData?.blocks) {
+                    ctx.strokeStyle = 'rgba(255,0,0,0.6)'; ctx.lineWidth = 2;
+                    ocrBlocksData.blocks.forEach(b => { if (b.bbox) ctx.strokeRect(b.bbox.x0, b.bbox.y0, b.bbox.x1 - b.bbox.x0, b.bbox.y1 - b.bbox.y0); });
+                }
+            };
+            img.onerror = () => { console.error("Preview image load fail."); initializeOcrPreviewCanvas(); ctx.fillText("Error loading preview", 300,200);};
+            img.src = imgUrl;
+            ocrPreviewPageInfo.textContent = `Page ${current} of ${total}`;
+            ocrPreviewContainer.classList.remove('hidden');
+        }
+        function hideOcrPreview() { ocrPreviewContainer.classList.add('hidden'); initializeOcrPreviewCanvas(); ocrPreviewPageInfo.textContent = 'Page X of Y'; }
+
+        function checkOcrCompatibility() {
+            if (navigator.deviceMemory && navigator.deviceMemory < 4) memoryWarningDiv.classList.remove('hidden');
+            if (typeof WebAssembly === 'undefined') {
+                ocrUnsupportedDiv.classList.remove('hidden');
+                [forceOcrCheckbox, enableLayoutAnalysisCheckbox, showOcrBlocksCheckbox].forEach(el => el.disabled = true);
+                ocrOptionsDiv.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+        function determineOptimalOcrScale(size) { return size > 30e6 ? 1.0 : (size > 10e6 ? 1.5 : 2.0); }
+
+        // --- Main Transcription Button ---
+        transcribeBtn.addEventListener('click', async () => {
+            if (DEBUG_MODE) console.log("Transcribe button clicked.");
+            if (!currentPdfFile) { showError('Please select a PDF file.'); return; }
+            resetLogAreas();
+            try {
+                hideError();
+                showProcessingIndicator('Starting transcription & structuring...');
+                resultSection.classList.add('hidden'); extractedData = [];
+
+                const pdfContentData = await extractTextFromPdf(currentPdfFile, {
+                    forceOcr: forceOcrCheckbox.checked,
+                    ocrScale: determineOptimalOcrScale(currentPdfFile.size),
+                    enableLayoutAnalysis: enableLayoutAnalysisCheckbox.checked
+                });
+
+                const rawFullText = (typeof pdfContentData === 'object' && pdfContentData.text) ? pdfContentData.text : (typeof pdfContentData === 'string' ? pdfContentData : '');
+                appendToLog(rawFullText || "No text extracted from PDF to send to LLM.", true); // Show full text in log
+
+                if (rawFullText && rawFullText.trim().length > 0) {
+                    showProcessingIndicator('Sending to LLM for structuring...'); // UPDATED
+                    if (DEBUG_MODE) console.log("Raw text extracted, sending to LLM function via proxy.");
+                    
+                    // Call the REAL LLM function (which uses the backend proxy)
+                    const markdownTableFromLlm = await callLlmToStructureData(rawFullText, USER_LLM_PROMPT);
+                    if (DEBUG_MODE) console.log("LLM Markdown Output (via proxy):\n", markdownTableFromLlm);
+
+                    if (markdownTableFromLlm && markdownTableFromLlm.trim() !== '' && !markdownTableFromLlm.startsWith("| Error |")) { // Check for our error placeholder
+                        showProcessingIndicator('Parsing LLM output...');
+                        extractedData = parseMarkdownTableToObjects(markdownTableFromLlm);
+                        if (DEBUG_MODE) console.log("Parsed objects from Markdown:", extractedData);
+                    } else {
+                        extractedData = [];
+                        if(DEBUG_MODE) console.warn("LLM returned empty, no Markdown table, or an error was indicated.");
+                        if (markdownTableFromLlm.startsWith("| Error |")) {
+                            showError("LLM processing failed. Check console for details from proxy.");
+                        }
+                    }
+                    
+                    displayResults(extractedData); // Display even if empty, to show "no results" message if needed
+                    resultSection.classList.remove('hidden');
+                    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    if (DEBUG_MODE) console.warn("No text extracted from PDF to process.");
+                    showError('Could not extract text from PDF. Cannot proceed with LLM structuring.');
+                    noResultsMessage.textContent = "No text extracted from PDF to send to LLM.";
+                    noResultsMessage.classList.remove('hidden');
+                    exportCsv.disabled = true; exportExcel.disabled = true;
+                }
+            } catch (error) {
+                console.error('Transcription/Structuring error:', error);
+                showError(error.name === 'OcrError' ? (error.message || 'OCR failed.') : `Error: ${error.message || 'Unknown error'}`);
+                resultSection.classList.add('hidden'); exportCsv.disabled = true; exportExcel.disabled = true;
+            } finally {
+                hideProcessingIndicator();
+            }
+        });
+
+        async function extractTextFromPdf(file, options = {}) {
+            if (DEBUG_MODE) console.log("extractTextFromPdf. Options:", options);
+            const { forceOcr, ocrScale, enableLayoutAnalysis } = options;
+            let pdf = null;
+            let fullTextReturn = { text: '', pages: [], containsOcrData: false, rawPageTexts: [] };
+
+            try {
+                showProcessingIndicator("Initializing PDF processor...");
+                const arrayBuffer = await file.arrayBuffer();
+                pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const numPages = pdf.numPages;
+                if (DEBUG_MODE) console.log(`PDF loaded: ${numPages} pages.`);
+                showProcessingIndicator(`Loaded PDF: ${numPages} pages.`);
+
+                let combinedTextForAllPages = ""; 
+
+                for (let i = 1; i <= numPages; i++) {
+                    const pageProgress = ((i - 1) / numPages) * 100;
+                    showProcessingIndicator(`Processing page ${i}/${numPages}...`, `Page ${i}/${numPages}`, pageProgress);
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.0 });
+                    let pageTextContent = ''; 
+
+                    try {
+                        const textContent = await page.getTextContent();
+                        pageTextContent = textContent.items.map(item => item.str).join(' ').trim();
+                    } catch (textError) { console.warn(`Native text extraction failed page ${i}:`, textError); }
+
+                    const requiresOcr = forceOcr || (!pageTextContent && enableLayoutAnalysis) || (pageTextContent.length < 50 && forceOcr);
+                    let imageDataForPreview, pageSpecificDataForLog;
+
+                    if (requiresOcr) {
+                        fullTextReturn.containsOcrData = true;
+                        if (DEBUG_MODE) console.log(`Page ${i}: Running OCR (scale: ${ocrScale}x).`);
+                        const ocrViewport = page.getViewport({ scale: ocrScale });
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = Math.floor(ocrViewport.width); tempCanvas.height = Math.floor(ocrViewport.height);
+                        await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: ocrViewport }).promise;
+                        imageDataForPreview = tempCanvas.toDataURL('image/png');
+                        
+                        const ocrResult = await performOcr(imageDataForPreview, i, numPages);
+                        pageTextContent = ocrResult.text; 
+                        pageSpecificDataForLog = ocrResult; 
+                        appendToLog(`--- Page ${i} (OCR Result) ---\nConfidence: ${ocrResult.confidence?.toFixed(2) || 'N/A'}%\n${ocrResult.text}\n\n`);
+                        tempCanvas.width = 0; tempCanvas.height = 0;
+                    } else {
+                        if (DEBUG_MODE) console.log(`Page ${i}: Using native text.`);
+                        pageSpecificDataForLog = { text: pageTextContent }; 
+                        appendToLog(`--- Page ${i} (Native PDF Text) ---\n${pageTextContent}\n\n`);
+                        const displayViewport = page.getViewport({ scale: Math.min(1.5, ocrScale) }); 
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = Math.floor(displayViewport.width); tempCanvas.height = Math.floor(displayViewport.height);
+                        await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: displayViewport }).promise;
+                        imageDataForPreview = tempCanvas.toDataURL('image/png');
+                        tempCanvas.width = 0; tempCanvas.height = 0;
+                    }
+                    
+                    combinedTextForAllPages += pageTextContent + "\n\n"; 
+                    if(enableLayoutAnalysis && requiresOcr) fullTextReturn.pages.push({ pageNumber: i, ocrData: pageSpecificDataForLog });
+                    else if(enableLayoutAnalysis) fullTextReturn.pages.push({ pageNumber: i, nativeText: pageTextContent });
+
+                    updateLiveOcrTextDisplay(pageSpecificDataForLog, i, numPages);
+                    if (imageDataForPreview) showOcrPreview(imageDataForPreview, i, numPages, requiresOcr && enableLayoutAnalysis ? pageSpecificDataForLog : null);
+                    page.cleanup();
+                }
+                
+                fullTextReturn.text = combinedTextForAllPages.trim();
+                if (DEBUG_MODE) console.log("extractTextFromPdf finished. Total text length:", fullTextReturn.text.length);
+                return enableLayoutAnalysis ? fullTextReturn : fullTextReturn.text;
+
+            } catch (error) {
+                console.error('PDF processing error:', error);
+                if (pdf) try { pdf.destroy(); } catch (e) { console.error("PDF destroy error", e); }
+                throw new Error(`Failed to process PDF: ${error.message || String(error)}`);
+            }
+        }
+        
+        async function performOcr(imageData, currentPage, totalPages) {
+            if (DEBUG_MODE) console.log(`performOcr page ${currentPage}/${totalPages}`);
+            let worker = null;
+            try {
+                worker = await Tesseract.createWorker({
+                    logger: m => {
+                        let progress = (m.progress && typeof m.progress === 'number') ? m.progress * 100 : null;
+                        if (DEBUG_MODE) console.log(`Tesseract (${currentPage}/${totalPages}): ${m.status}`, m.progress || '');
+                        if (m.status && (m.status !== 'recognizing text' || (progress !== null && progress > 0))) {
+                             showProcessingIndicator(`Processing page ${currentPage}/${totalPages}...`, `OCR: ${m.status}`, progress);
+                        }
+                    }
+                });
+                await worker.loadLanguage('eng'); await worker.initialize('eng');
+                await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.AUTO_OSD, preserve_interword_spaces: '1' });
+                const result = await worker.recognize(imageData);
+                await worker.terminate(); worker = null;
+                return result.data;
+            } catch (error) {
+                console.error(`OCR Error page ${currentPage}:`, error);
+                if (worker) try { await worker.terminate(); } catch (e) { console.error("Tesseract terminate error", e); }
+                const ocrErr = new Error(`OCR failed page ${currentPage}: ${error.message || String(error)}`);
+                ocrErr.name = 'OcrError'; ocrErr.originalError = error; throw ocrErr;
+            }
+        }
+
+        // --- LLM Call via Backend Proxy ---
+        async function callLlmToStructureData(rawText, llmPrompt) {
+            if (DEBUG_MODE) {
+                console.log("Calling backend proxy for LLM structuring with prompt:", llmPrompt);
+                console.log("Raw text input to backend (first 500 chars):", rawText.substring(0, 500));
+            }
+
+            // Ensure this URL matches where your backend server is running
+            const PROXY_URL = 'http://localhost:3001/api/llm-structure'; 
+
+            try {
+                // showProcessingIndicator('Sending data to LLM via proxy...'); // Already handled by main button handler
+                const response = await fetch(PROXY_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        rawText: rawText,
+                        llmPrompt: llmPrompt
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: "Unknown error from proxy", details: { message: `Proxy server returned ${response.status}` } }));
+                    console.error('Error from proxy server:', response.status, errorData);
+                    // Ensure errorData.details exists and has a message for showError
+                    let detailMessage = "Unknown error";
+                    if (errorData.details && errorData.details.message) {
+                        detailMessage = errorData.details.message;
+                    } else if (errorData.error) {
+                        detailMessage = errorData.error;
+                    }
+                    throw new Error(`Proxy error: ${response.status} - ${detailMessage}`);
+                }
+
+                const data = await response.json();
+                // showProcessingIndicator('Received response from LLM...'); // Already handled by main button handler
+
+                if (DEBUG_MODE) {
+                    console.log("Markdown table from LLM via proxy:\n", data.markdownTable);
+                }
+                return data.markdownTable; 
+
+            } catch (error) {
+                console.error('Error in callLlmToStructureData:', error);
+                // Use showError to display this to the user
+                showError(`LLM Comms: ${error.message}`);
+                // Return a special string that parseMarkdownTableToObjects and the main handler can identify as an error
+                return "| Error | Communicating | With | LLM |\n|---|---|---|---|\n| See console | for | details | ... |";
+            }
+        }
+
+        // --- Markdown Table Parser ---
+        function parseMarkdownTableToObjects(markdownTableString) {
+            if (DEBUG_MODE) console.log("Parsing Markdown Table:\n", markdownTableString);
+            const objects = [];
+            if (!markdownTableString || typeof markdownTableString !== 'string' || markdownTableString.startsWith("| Error |")) {
+                if (DEBUG_MODE) console.error("Markdown input is invalid, empty, or indicates an error from LLM.");
+                return objects; // Return empty if it's the error placeholder
+            }
+
+            const lines = markdownTableString.trim().split('\n');
+            if (lines.length < 2) { 
+                 if (DEBUG_MODE) console.warn("Markdown table has too few lines to parse.");
+                return objects;
+            }
+
+            const headerLine = lines[0].trim();
+            // Robust header parsing: remove leading/trailing pipes if present, then split
+            let rawHeaders = headerLine;
+            if (rawHeaders.startsWith('|')) rawHeaders = rawHeaders.substring(1);
+            if (rawHeaders.endsWith('|')) rawHeaders = rawHeaders.substring(0, rawHeaders.length - 1);
+            
+            const headers = rawHeaders.split('|').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, '')); // "qxandquestion", "section"
+
+            const expectedHeadersMap = {
+                section: 'section',
+                qxandquestion: 'questionText',
+                questionnumberandquestion: 'questionText', // More robust mapping
+                questiontext: 'questionText',
+                question: 'questionText',
+                answer: 'answer',
+                instructions: 'instructions',
+                instruction: 'instructions' // More robust mapping
+            };
+            
+            const columnMap = headers.map(h_raw => {
+                const h = h_raw.replace(/[^a-z0-9]/gi, ''); // Clean the header for matching
+                for (const key in expectedHeadersMap) {
+                    // Try exact match first, then 'includes' for flexibility
+                    if (h === key || h.includes(key)) return expectedHeadersMap[key];
+                }
+                 if (DEBUG_MODE) console.warn(`Unknown header "${h_raw}" (cleaned: "${h}") encountered in Markdown table.`);
+                return `unknown_${h_raw.replace(/\s+/g, '_')}`; // Keep unknown headers but make them valid keys
+            });
+
+            if (DEBUG_MODE) console.log("Effective column map for parsing:", columnMap);
+
+            for (let i = 2; i < lines.length; i++) { // Start from index 2 (skip header and separator line)
+                const line = lines[i].trim();
+                if (!line.startsWith('|') || !line.endsWith('|')) {
+                    if (DEBUG_MODE && line.length > 0 && !line.match(/^\|?-+--?\|?$/)) console.warn("Skipping malformed Markdown line:", line);
+                    continue;
+                }
+                
+                // Remove leading/trailing pipes before splitting
+                const values = line.substring(1, line.length -1).split('|').map(v => v.trim());
+                const obj = {};
+                let hasData = false;
+
+                for(let j=0; j < columnMap.length; j++) {
+                    if(columnMap[j] && values[j] !== undefined) {
+                        obj[columnMap[j]] = values[j];
+                        if(values[j] && values[j] !== '-' && values[j].trim() !== '') hasData = true;
+                    } else if (values[j] !== undefined) { // Store data from unmapped columns with a generic key
+                        obj[`column_${j+1}`] = values[j];
+                        if(values[j] && values[j] !== '-' && values[j].trim() !== '') hasData = true;
+                    }
+                }
+
+                // Ensure standard fields exist, even if empty
+                if (!obj.hasOwnProperty('section')) obj.section = '-';
+                if (!obj.hasOwnProperty('questionText')) obj.questionText = '-';
+                if (!obj.hasOwnProperty('answer')) obj.answer = '-';
+                if (!obj.hasOwnProperty('instructions')) obj.instructions = '-';
+
+                if (hasData || Object.values(obj).some(val => val && val !== '-')) {
+                    objects.push(obj);
+                } else {
+                    if (DEBUG_MODE) console.log("Skipping row with no significant data:", obj);
+                }
+            }
+            if (DEBUG_MODE) console.log("Parsed objects from markdown:", objects);
+            return objects;
+        }
+
+        // --- Display Results (expects array of objects) ---
+        function displayResults(data) {
+            if (DEBUG_MODE) console.log("displayResults data:", data);
+            resultBody.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                noResultsMessage.textContent = "No structured data returned from LLM processing or parsing, or the data was empty.";
+                noResultsMessage.classList.remove('hidden');
+                // Keep resultSection potentially visible to show the "no results" message within its frame
+                // resultSection.classList.add('hidden'); 
+                exportCsv.disabled = true; exportExcel.disabled = true;
+                return;
+            }
+
+            noResultsMessage.classList.add('hidden');
+            resultSection.classList.remove('hidden');
+
+            data.forEach(item => {
+                const row = resultBody.insertRow();
+                row.insertCell().textContent = item.section || item.Section || '-'; // More robust access
+                row.insertCell().textContent = item.questionText || item["Q.X and Question"] || item.Question || '-';
+                row.insertCell().textContent = item.answer || item.Answer || '-';
+                row.insertCell().textContent = item.instructions || item.Instructions || '-';
+                Array.from(row.cells).forEach(cell => cell.className = 'px-6 py-4 whitespace-normal text-sm text-gray-700 break-words');
+            });
+
+            exportCsv.disabled = false; exportExcel.disabled = false;
+        }
+
+        // --- Export Functions (CSV and Excel) ---
+        function exportToCsv(filename, rows) {
+            const header = ["Section", "Q.X and Question", "Answer", "Instructions"]; 
+            const csvContent = [
+                header.join(','),
+                ...rows.map(r => [
+                    `"${(r.section || r.Section || '-').replace(/"/g, '""')}"`,
+                    `"${(r.questionText || r["Q.X and Question"] || r.Question || '-').replace(/"/g, '""')}"`,
+                    `"${(r.answer || r.Answer || '-').replace(/"/g, '""')}"`,
+                    `"${(r.instructions || r.Instructions || '-').replace(/"/g, '""')}"`
+                ].join(','))
+            ].join('\n');
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); // Added BOM for Excel
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob); link.download = filename;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+        exportCsv.addEventListener('click', () => {
+            if (extractedData.length > 0) exportToCsv('llm_structured_results.csv', extractedData);
+            else showError("No data to export.");
+        });
+
+        function exportToExcel(filename, rows) {
+            const header = ["Section", "Q.X and Question", "Answer", "Instructions"];
+            const dataToExport = rows.map(r => ({
+                "Section": r.section || r.Section || '-', 
+                "Q.X and Question": r.questionText || r["Q.X and Question"] || r.Question ||'-',
+                "Answer": r.answer || r.Answer || '-', 
+                "Instructions": r.instructions || r.Instructions || '-'
+            }));
+            const ws = XLSX.utils.json_to_sheet(dataToExport, {header: header}); 
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Results");
+            XLSX.writeFile(wb, filename);
+        }
+        exportExcel.addEventListener('click', () => {
+            if (extractedData.length > 0) exportToExcel('llm_structured_results.xlsx', extractedData);
+            else showError("No data to export.");
+        });
+
+    </script>
+</body>
+</html>
