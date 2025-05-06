@@ -128,7 +128,7 @@
                     </div>
                 </div>
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Full Transcription Log (Input to LLM)</h3>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Full Transcription Log (Input to LLM Proxy)</h3> <!-- MODIFIED LOG TITLE -->
                     <div id="transcriptionLog" class="log-area h-96 overflow-y-auto">
                         Log will appear here...
                     </div>
@@ -148,7 +148,6 @@
                         <button id="removeFile" class="text-red-600 hover:text-red-800 text-sm font-medium">Remove</button>
                     </div>
                     
-                    <!-- Processing Settings and LLM Selection -->
                     <div class="mb-4 border-t pt-4 mt-4 space-y-4">
                         <div>
                              <h3 class="text-md font-semibold mb-2 text-gray-600">Processing Settings</h3>
@@ -169,18 +168,16 @@
                             </div>
                         </div>
 
-                        <div id="llmModelOptions"> <!-- MOVED LLM SELECTION HERE -->
+                        <div id="llmModelOptions"> 
                             <h3 class="text-md font-semibold mb-2 text-gray-600">LLM Selection</h3>
                             <label for="llmModelSelect" class="block text-sm font-medium text-gray-700 mb-1">Choose LLM Provider/Model:</label>
                             <select id="llmModelSelect" name="llmModel" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                <option value="local_ollama_Qwen3">Local LLM (Ollama - Qwen3)</option>
+                                <!-- IMPORTANT: The value attribute here MUST match a key in your backend's LLM_CONFIGS -->
+                                <option value="local_ollama_Qwen3">Local LLM (Ollama - Qwen3 8B)</option> 
                                 <option value="google_gemini_pro">Google Gemini Pro (Cloud)</option>
-                                <!-- Add more options here if you support them, e.g.: -->
-                                <!-- <option value="openai_gpt35_turbo">OpenAI GPT-3.5 Turbo (Cloud)</option> -->
                             </select>
                         </div>
                     </div>
-                    <!-- End Processing Settings and LLM Selection -->
 
                     <div id="memoryWarning" class="alert bg-yellow-100 border border-yellow-300 text-yellow-800 text-sm p-3 rounded-md mb-4 hidden">
                         <p><strong>Warning:</strong> Your device has limited memory. OCR processing might be slow or unstable.</p>
@@ -255,7 +252,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.worker.min.js';
 
-        let DEBUG_MODE = false; 
+        let DEBUG_MODE = true; // SET TO TRUE FOR DETAILED CONSOLE LOGS 
         let selectedFile = null;
         let extractedData = [];
         let currentPdfFile = null;
@@ -279,7 +276,6 @@
         const forceOcrCheckbox = document.getElementById('forceOcrCheckbox');
         const enableLayoutAnalysisCheckbox = document.getElementById('enableLayoutAnalysisCheckbox');
         const showOcrBlocksCheckbox = document.getElementById('showOcrBlocksCheckbox');
-        // const ocrOptionsDiv = document.getElementById('ocrOptions'); // No longer strictly needed if combined
         const memoryWarningDiv = document.getElementById('memoryWarning');
         const ocrUnsupportedDiv = document.getElementById('ocrUnsupported');
         const ocrPreviewContainer = document.getElementById('ocrPreviewContainer');
@@ -288,7 +284,7 @@
         const liveOcrTextEl = document.getElementById('liveOcrText');
         const transcriptionLogEl = document.getElementById('transcriptionLog');
         const llmPromptDisplayEl = document.getElementById('llmPromptDisplay');
-        const llmModelSelectEl = document.getElementById('llmModelSelect'); // Get the new select element
+        const llmModelSelectEl = document.getElementById('llmModelSelect'); 
 
         const USER_LLM_PROMPT = `Please extract information from the provided PDF document (an exam paper with an accompanying answer key) and organize it into a table with exactly four columns.
 The required columns are:
@@ -317,6 +313,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         });
 
         function initializeOcrPreviewCanvas() {
+            // ... (same as your version)
             const ctx = ocrPreviewCanvas.getContext('2d');
             ocrPreviewCanvas.width = 600; ocrPreviewCanvas.height = 400;
             ctx.fillStyle = "#eee"; ctx.fillRect(0, 0, 600, 400);
@@ -325,11 +322,13 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
 
         function resetLogAreas() {
+            // ... (same as your version)
             if (liveOcrTextEl) liveOcrTextEl.textContent = 'Waiting for page processing...';
-            if (transcriptionLogEl) transcriptionLogEl.textContent = 'Full transcribed text (input to LLM) will appear here...\n';
+            if (transcriptionLogEl) transcriptionLogEl.textContent = 'Full transcribed text (input to LLM Proxy) will appear here...\n'; // MODIFIED LOG TITLE
         }
 
         function appendToLog(message, isFullLog = false) {
+            // ... (same as your version)
             if (!transcriptionLogEl) return;
             if (isFullLog) { 
                 transcriptionLogEl.textContent = message;
@@ -343,6 +342,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
         
         function updateLiveOcrTextDisplay(pageData, currentPage, totalPages) {
+            // ... (same as your version)
             if (!liveOcrTextEl) return;
             if (!pageData) {
                 liveOcrTextEl.textContent = `Page ${currentPage}/${totalPages}: No text data for live preview.`;
@@ -363,6 +363,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
 
         function setupDebugToggle() {
+            // ... (same as your version)
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || DEBUG_MODE) {
                 const btn = document.createElement('button'); btn.id = 'debugToggle';
                 btn.textContent = `Debug: ${DEBUG_MODE ? 'ON' : 'OFF'}`;
@@ -371,14 +372,18 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             }
         }
 
+        // ... (event listeners for dropArea, fileInput, removeFile are same as your version)
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false));
         ['dragenter', 'dragover'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.add('active'), false));
         ['dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.remove('active'), false));
         dropArea.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
         dropArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', e => handleFiles(e.target.files));
+        removeFile.addEventListener('click', resetFileInput);
+
 
         function handleFiles(files) {
+            // ... (same as your version)
             if (DEBUG_MODE) console.log("handleFiles:", files);
             if (files.length > 0 && files[0].type === 'application/pdf') {
                 currentPdfFile = files[0]; selectedFile = files[0];
@@ -389,8 +394,8 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 ocrPreviewContainer.classList.add('hidden'); resetLogAreas();
             } else { showError('Please select a PDF file.'); resetFileInput(); }
         }
-        removeFile.addEventListener('click', resetFileInput);
         function resetFileInput() {
+            // ... (same as your version)
             fileInput.value = ''; selectedFile = null; currentPdfFile = null;
             fileInfo.classList.add('hidden'); fileNameElem.textContent = '';
             transcribeBtn.disabled = true; hideError(); resultSection.classList.add('hidden');
@@ -400,7 +405,8 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
 
         function showProcessingIndicator(statusMsg, subStatus = '', progress = null) {
-            processingStatus.textContent = statusMsg; processingSubStatus.textContent = subStatus;
+            // ... (same as your version)
+             processingStatus.textContent = statusMsg; processingSubStatus.textContent = subStatus;
             processingIndicator.classList.remove('hidden'); transcribeBtn.disabled = true;
             const bar = document.getElementById('processingProgressBar'); if (bar) bar.remove();
             if (progress !== null && progress >= 0) {
@@ -412,18 +418,24 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             } else progressBarContainer.innerHTML = '';
         }
         function hideProcessingIndicator() {
+            // ... (same as your version)
             processingIndicator.classList.add('hidden'); progressBarContainer.innerHTML = '';
             if (currentPdfFile) transcribeBtn.disabled = false;
         }
         function showError(msg) {
+            // ... (same as your version)
             const dMsg = msg || 'An error occurred.';
             errorMessage.querySelector('p').textContent = dMsg; errorMessage.classList.remove('hidden');
             errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
             if (DEBUG_MODE) console.error("showError:", dMsg);
         }
-        function hideError() { errorMessage.classList.add('hidden'); errorMessage.querySelector('p').textContent = ''; }
+        function hideError() {
+            // ... (same as your version)
+            errorMessage.classList.add('hidden'); errorMessage.querySelector('p').textContent = '';
+        }
 
         function showOcrPreview(imgUrl, current, total, ocrBlocksData = null) {
+            // ... (same as your version)
             if (DEBUG_MODE) console.log(`OCR preview page ${current}/${total}`, ocrBlocksData ? "with blocks" : "");
             const canvas = ocrPreviewCanvas, ctx = canvas.getContext('2d'), img = new Image();
             img.onload = () => {
@@ -439,11 +451,15 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             ocrPreviewPageInfo.textContent = `Page ${current} of ${total}`;
             ocrPreviewContainer.classList.remove('hidden');
         }
-        function hideOcrPreview() { ocrPreviewContainer.classList.add('hidden'); initializeOcrPreviewCanvas(); ocrPreviewPageInfo.textContent = 'Page X of Y'; }
+        function hideOcrPreview() {
+            // ... (same as your version)
+            ocrPreviewContainer.classList.add('hidden'); initializeOcrPreviewCanvas(); ocrPreviewPageInfo.textContent = 'Page X of Y';
+        }
 
         function checkOcrCompatibility() {
+            // ... (same as your version)
             if (navigator.deviceMemory && navigator.deviceMemory < 4) memoryWarningDiv.classList.remove('hidden');
-            const ocrSettingsElements = [forceOcrCheckbox, enableLayoutAnalysisCheckbox, showOcrBlocksCheckbox, document.getElementById('llmModelOptions')]; // Added llmModelOptions to this group
+            const ocrSettingsElements = [forceOcrCheckbox, enableLayoutAnalysisCheckbox, showOcrBlocksCheckbox, document.getElementById('llmModelOptions')]; 
             if (typeof WebAssembly === 'undefined') {
                 ocrUnsupportedDiv.classList.remove('hidden');
                 ocrSettingsElements.forEach(el => { 
@@ -454,10 +470,14 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 });
             }
         }
-        function determineOptimalOcrScale(size) { return size > 30e6 ? 1.0 : (size > 10e6 ? 1.5 : 2.0); }
+        function determineOptimalOcrScale(size) { 
+            // ... (same as your version)
+            return size > 30e6 ? 1.0 : (size > 10e6 ? 1.5 : 2.0);
+        }
 
         // --- Main Transcription Button ---
         transcribeBtn.addEventListener('click', async () => {
+            // This is mostly your version, ensuring selectedLlmModel is correctly fetched and passed
             if (DEBUG_MODE) console.log("Transcribe button clicked.");
             if (!currentPdfFile) { showError('Please select a PDF file.'); return; }
             resetLogAreas();
@@ -473,19 +493,26 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 });
 
                 const rawFullText = (typeof pdfContentData === 'object' && pdfContentData.text) ? pdfContentData.text : (typeof pdfContentData === 'string' ? pdfContentData : '');
-                appendToLog(rawFullText || "No text extracted from PDF to send to LLM.", true); 
+                appendToLog(rawFullText || "No text extracted from PDF to send to LLM Proxy.", true);  // MODIFIED LOG TEXT
 
                 if (rawFullText && rawFullText.trim().length > 0) {
-                    const selectedLlmModel = llmModelSelectEl.value; // Get selected model
-                    const selectedLlmModelText = llmModelSelectEl.options[llmModelSelectEl.selectedIndex].text; // Get text of selected option
+                    const selectedLlmModel = llmModelSelectEl.value; 
+                    const selectedLlmModelText = llmModelSelectEl.options[llmModelSelectEl.selectedIndex].text; 
                     
                     if (DEBUG_MODE) console.log("Selected LLM Model for processing:", selectedLlmModel, `(${selectedLlmModelText})`);
 
                     showProcessingIndicator(`Sending to ${selectedLlmModelText} for structuring...`);
                     if (DEBUG_MODE) console.log("Raw text extracted, sending to LLM function via proxy.");
                     
-                    const markdownTableFromLlm = await callLlmToStructureData(rawFullText, USER_LLM_PROMPT, selectedLlmModel); // Pass selected model
-                    if (DEBUG_MODE) console.log("LLM Markdown Output (via proxy):\n", markdownTableFromLlm);
+                    const markdownTableFromLlm = await callLlmToStructureData(rawFullText, USER_LLM_PROMPT, selectedLlmModel); 
+                    
+                    // --- Log raw response from LLM in Browser Console (if DEBUG_MODE) ---
+                    if (DEBUG_MODE) {
+                        console.log("--- Raw LLM Response Received by Frontend ---");
+                        console.log(markdownTableFromLlm);
+                        console.log("--- End of Raw LLM Response ---");
+                    }
+                    // --- End of Log ---
 
                     if (markdownTableFromLlm && markdownTableFromLlm.trim() !== '' && !markdownTableFromLlm.startsWith("| Error |")) { 
                         showProcessingIndicator('Parsing LLM output...');
@@ -493,10 +520,8 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                         if (DEBUG_MODE) console.log("Parsed objects from Markdown:", extractedData);
                     } else {
                         extractedData = [];
-                        if(DEBUG_MODE) console.warn("LLM returned empty, no Markdown table, or an error was indicated.");
-                        if (markdownTableFromLlm.startsWith("| Error |")) {
-                            // Error already shown by callLlmToStructureData
-                        }
+                        if(DEBUG_MODE) console.warn("LLM returned empty, no Markdown table, or an error was indicated by the proxy.");
+                        // Error message should have already been shown by callLlmToStructureData if it returned the error placeholder
                     }
                     
                     displayResults(extractedData); 
@@ -519,12 +544,11 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         });
 
         async function extractTextFromPdf(file, options = {}) {
-            // This function remains the same as your last working version
+            // ... (This function should be your last working version - no changes needed here for LLM selection)
             if (DEBUG_MODE) console.log("extractTextFromPdf. Options:", options);
             const { forceOcr, ocrScale, enableLayoutAnalysis } = options;
             let pdf = null;
             let fullTextReturn = { text: '', pages: [], containsOcrData: false, rawPageTexts: [] };
-
             try {
                 showProcessingIndicator("Initializing PDF processor...");
                 const arrayBuffer = await file.arrayBuffer();
@@ -537,7 +561,6 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                     const pageProgress = ((i - 1) / numPages) * 100;
                     showProcessingIndicator(`Processing page ${i}/${numPages}...`, `Page ${i}/${numPages}`, pageProgress);
                     const page = await pdf.getPage(i);
-                    const viewport = page.getViewport({ scale: 1.0 });
                     let pageTextContent = ''; 
                     try {
                         const textContent = await page.getTextContent();
@@ -587,7 +610,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
         
         async function performOcr(imageData, currentPage, totalPages) {
-            // This function remains the same as your last working version
+            // ... (This function should be your last working version)
             if (DEBUG_MODE) console.log(`performOcr page ${currentPage}/${totalPages}`);
             let worker = null;
             try {
@@ -614,9 +637,10 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         }
 
         // --- LLM Call via Backend Proxy ---
-        async function callLlmToStructureData(rawText, llmPrompt, selectedModel) { // ADDED selectedModel
+        async function callLlmToStructureData(rawText, llmPrompt, selectedModel) { 
+            // This function is mostly your version, ensuring selectedModel is correctly included in the body
             if (DEBUG_MODE) {
-                console.log(`Calling backend proxy for LLM structuring. Model: ${selectedModel}, Prompt:`, llmPrompt.substring(0,100)+"...");
+                console.log(`Calling backend proxy for LLM structuring. Model: ${selectedModel}, Prompt (start):`, llmPrompt.substring(0,100)+"...");
                 console.log("Raw text input to backend (first 500 chars):", rawText.substring(0, 500));
             }
             const PROXY_URL = 'http://localhost:3001/api/llm-structure'; 
@@ -630,7 +654,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                     body: JSON.stringify({
                         rawText: rawText,
                         llmPrompt: llmPrompt,
-                        selectedModel: selectedModel // SEND THE SELECTED MODEL
+                        selectedModel: selectedModel 
                     })
                 });
 
@@ -643,35 +667,28 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                     } else if (errorData.error) {
                         detailMessage = errorData.error;
                     }
-                    // Use showError to display this to the user
                     showError(`Proxy error (${response.status}): ${detailMessage}. Check backend console.`);
-                    throw new Error(`Proxy error: ${response.status} - ${detailMessage}`);
+                    // throw new Error(`Proxy error: ${response.status} - ${detailMessage}`); // Let it return the error placeholder instead
+                    return "| Error | Proxy | Error | See Logs |\n|---|---|---|---|\n"; // Return placeholder on error
                 }
 
                 const data = await response.json();
-                if (DEBUG_MODE) {
-                    console.log("Markdown table from LLM via proxy:\n", data.markdownTable);
-                }
+                // DEBUG_MODE log for raw table already moved to transcribeBtn listener for clarity
                 return data.markdownTable; 
-            } catch (error) { // Catches both fetch errors and errors thrown above
-                console.error('Error in callLlmToStructureData:', error);
-                // If showError wasn't called above for a !response.ok, call it now for fetch/network errors
-                if (!errorMessage.classList.contains('hidden') && errorMessage.querySelector('p').textContent.includes(error.message)) {
-                  // Error already shown
-                } else {
-                  showError(`LLM Comms Error: ${error.message}. Check backend console.`);
-                }
+            } catch (error) { 
+                console.error('Error in callLlmToStructureData (fetch or network issue):', error);
+                showError(`LLM Comms Error: ${error.message}. Check backend console.`);
                 return "| Error | Communicating | With | LLM |\n|---|---|---|---|\n| See console | for | details | ... |";
             }
         }
 
         // --- Markdown Table Parser ---
         function parseMarkdownTableToObjects(markdownTableString) {
-            // This function remains the same as your last working version
-            if (DEBUG_MODE) console.log("Parsing Markdown Table:\n", markdownTableString);
+            // ... (This function should be your last working version)
+            if (DEBUG_MODE) console.log("Parsing Markdown Table (input string):\n", markdownTableString); // Added (input string) for clarity
             const objects = [];
             if (!markdownTableString || typeof markdownTableString !== 'string' || markdownTableString.startsWith("| Error |")) {
-                if (DEBUG_MODE) console.error("Markdown input is invalid, empty, or indicates an error from LLM.");
+                if (DEBUG_MODE) console.error("Markdown input is invalid, empty, or indicates an error from LLM/Proxy.");
                 return objects;
             }
             const lines = markdownTableString.trim().split('\n');
@@ -726,13 +743,13 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                     if (DEBUG_MODE) console.log("Skipping row with no significant data:", obj);
                 }
             }
+            // The existing DEBUG_MODE log for parsed objects is good.
             if (DEBUG_MODE) console.log("Parsed objects from markdown:", objects);
             return objects;
         }
 
-        // --- Display Results (expects array of objects) ---
         function displayResults(data) {
-            // This function remains the same as your last working version
+            // ... (This function should be your last working version)
             if (DEBUG_MODE) console.log("displayResults data:", data);
             resultBody.innerHTML = '';
             if (!data || data.length === 0) {
@@ -754,9 +771,8 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             exportCsv.disabled = false; exportExcel.disabled = false;
         }
 
-        // --- Export Functions (CSV and Excel) ---
         function exportToCsv(filename, rows) {
-            // This function remains the same as your last working version
+            // ... (This function should be your last working version)
             const header = ["Section", "Q.X and Question", "Answer", "Instructions"]; 
             const csvContent = [
                 header.join(','),
@@ -772,14 +788,9 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             link.href = URL.createObjectURL(blob); link.download = filename;
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
-        exportCsv.addEventListener('click', () => {
-            if (extractedData.length > 0) exportToCsv('llm_structured_results.csv', extractedData);
-            else showError("No data to export.");
-        });
-
         function exportToExcel(filename, rows) {
-            // This function remains the same as your last working version
-            const header = ["Section", "Q.X and Question", "Answer", "Instructions"];
+            // ... (This function should be your last working version)
+             const header = ["Section", "Q.X and Question", "Answer", "Instructions"];
             const dataToExport = rows.map(r => ({
                 "Section": r.section || r.Section || '-', 
                 "Q.X and Question": r.questionText || r["Q.X and Question"] || r.Question ||'-',
@@ -790,6 +801,12 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Results");
             XLSX.writeFile(wb, filename);
         }
+        
+        // Event listeners for export buttons
+        exportCsv.addEventListener('click', () => {
+            if (extractedData.length > 0) exportToCsv('llm_structured_results.csv', extractedData);
+            else showError("No data to export.");
+        });
         exportExcel.addEventListener('click', () => {
             if (extractedData.length > 0) exportToExcel('llm_structured_results.xlsx', extractedData);
             else showError("No data to export.");
