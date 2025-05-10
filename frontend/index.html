@@ -107,6 +107,30 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        #llmLiveOutputContainer {
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        #llmLiveOutput { 
+            min-height: 100px;
+            max-height: 400px; 
+            overflow-y: auto;
+        }
+        .manual-input-json-label::after {
+            content: " (Paste JSON from LLM tagging)";
+            font-style: italic;
+            font-size: 0.8em;
+            color: #4b5563; /* gray-600 */
+        }
+         .manual-input-markdown-label::after {
+            content: " (Paste Markdown Table)";
+            font-style: italic;
+            font-size: 0.8em;
+            color: #4b5563; /* gray-600 */
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -116,7 +140,7 @@
         <div class="main-content-grid">
             <div class="order-2 lg:order-1 bg-white rounded-lg shadow-md p-6 space-y-6">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">LLM Structuring Prompt</h3>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Active LLM Prompt</h3>
                     <div id="llmPromptDisplay" class="log-area">
                         The prompt for the LLM will be displayed here.
                     </div>
@@ -128,7 +152,7 @@
                     </div>
                 </div>
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Full Transcription Log (Input to LLM Proxy)</h3> <!-- MODIFIED LOG TITLE -->
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Full Transcription Log (Input to LLM Proxy)</h3>
                     <div id="transcriptionLog" class="log-area h-96 overflow-y-auto">
                         Log will appear here...
                     </div>
@@ -137,7 +161,7 @@
 
             <div class="order-1 lg:order-2 space-y-6">
                 <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Upload Exam Paper</h2>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700">1. Upload Exam Paper & Process with LLM</h2>
                     <div id="dropArea" class="drop-area mb-4">
                         <p class="text-gray-600 mb-2">Drop your PDF file here or click to browse</p>
                         <p class="text-sm text-gray-500">Supported format: PDF</p>
@@ -150,7 +174,7 @@
                     
                     <div class="mb-4 border-t pt-4 mt-4 space-y-4">
                         <div>
-                             <h3 class="text-md font-semibold mb-2 text-gray-600">Processing Settings</h3>
+                             <h3 class="text-md font-semibold mb-2 text-gray-600">File Processing Settings</h3>
                              <div class="form-check flex items-center space-x-2 mb-2">
                                 <input class="form-check-input h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" type="checkbox" id="forceOcrCheckbox">
                                 <label class="form-check-label text-sm text-gray-700" for="forceOcrCheckbox">
@@ -168,14 +192,23 @@
                             </div>
                         </div>
 
-                        <div id="llmModelOptions"> 
-                            <h3 class="text-md font-semibold mb-2 text-gray-600">LLM Selection</h3>
-                            <label for="llmModelSelect" class="block text-sm font-medium text-gray-700 mb-1">Choose LLM Provider/Model:</label>
-                            <select id="llmModelSelect" name="llmModel" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                <!-- IMPORTANT: The value attribute here MUST match a key in your backend's LLM_CONFIGS -->
-                                <option value="local_ollama_Qwen3">Local LLM (Ollama - Qwen3 8B)</option> 
-                                <option value="google_gemini_pro">Google Gemini Pro (Cloud)</option>
-                            </select>
+                        <div id="llmConfigOptions" class="space-y-3">
+                            <div>
+                                <h3 class="text-md font-semibold text-gray-600">LLM Selection</h3>
+                                <label for="llmModelSelect" class="block text-sm font-medium text-gray-700 mb-1">Choose LLM Provider/Model:</label>
+                                <select id="llmModelSelect" name="llmModel" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="local_ollama_Qwen3">Local LLM (Ollama - Qwen3 8B) - Streaming</option> 
+                                    <option value="google_gemini_pro">Google Gemini Pro (Cloud) - Streaming</option>
+                                </select>
+                            </div>
+                            <div id="processingModeOptions">
+                                <h3 class="text-md font-semibold text-gray-600">LLM Processing Mode</h3>
+                                <label for="processingModeSelect" class="block text-sm font-medium text-gray-700 mb-1">Choose how LLM output is processed:</label>
+                                <select id="processingModeSelect" name="processingMode" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="directStructure">LLM Direct Structuring (Outputs Markdown Table)</option>
+                                    <option value="tagAndAssemble">LLM Tags Content & Frontend Assembles (Outputs JSON)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -215,9 +248,33 @@
                     <p></p>
                 </div>
 
-                <div id="resultSection" class="hidden bg-white rounded-lg shadow-md p-6">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                        <h2 class="text-xl font-semibold text-gray-700 mb-2 sm:mb-0">2. Structured Results (from LLM)</h2>
+                <div id="llmLiveOutputContainer" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Live LLM Output Stream</h3>
+                    <div id="llmLiveOutput" class="log-area h-64 overflow-y-auto">Waiting for LLM stream...</div>
+                </div>
+
+                <div id="manualInputSection" class="bg-white rounded-lg shadow-md p-6 mt-6">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">2. Or, Parse Manual LLM Output</h2>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Paste LLM output below (Markdown table or JSON tags, matching selected Processing Mode) to parse and display it.
+                    </p>
+                    <div>
+                        <label id="manualInputLabel" for="manualMarkdownInput" class="block text-sm font-medium text-gray-700 mb-1 manual-input-markdown-label">
+                            Paste LLM Output Here:
+                        </label>
+                        <textarea id="manualMarkdownInput" rows="10"
+                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md p-2 log-area"
+                            placeholder="| Section | Q.X and Question | Answer | Instructions |\n|---|---|---|---|\n| ... | ... | ... | ... |"></textarea>
+                    </div>
+                    <button id="processManualInputBtn"
+                        class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded w-full sm:w-auto">
+                        Parse and Display Manual Output
+                    </button>
+                </div>
+
+                <div id="resultSection" class="hidden bg-white rounded-lg shadow-md p-6 mt-6">
+                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-2 sm:mb-0">3. Structured Results</h2>
                         <div class="space-x-2 flex">
                             <button id="exportCsv" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded text-sm disabled:opacity-50" disabled>
                                 Export CSV
@@ -242,7 +299,7 @@
                         </table>
                     </div>
                      <div id="noResultsMessage" class="text-center py-4 text-gray-500 hidden">
-                        No data could be structured by the LLM.
+                        No data could be structured.
                     </div>
                 </div>
             </div>
@@ -252,7 +309,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.worker.min.js';
 
-        let DEBUG_MODE = true; // SET TO TRUE FOR DETAILED CONSOLE LOGS 
+        let DEBUG_MODE = true; 
         let selectedFile = null;
         let extractedData = [];
         let currentPdfFile = null;
@@ -285,16 +342,49 @@
         const transcriptionLogEl = document.getElementById('transcriptionLog');
         const llmPromptDisplayEl = document.getElementById('llmPromptDisplay');
         const llmModelSelectEl = document.getElementById('llmModelSelect'); 
+        const llmLiveOutputContainerEl = document.getElementById('llmLiveOutputContainer');
+        const llmLiveOutputEl = document.getElementById('llmLiveOutput');
+        const processingModeSelectEl = document.getElementById('processingModeSelect');
+        const manualMarkdownInputEl = document.getElementById('manualMarkdownInput');
+        const processManualInputBtnEl = document.getElementById('processManualInputBtn');
+        const manualInputLabelEl = document.getElementById('manualInputLabel');
 
-        const USER_LLM_PROMPT = `Please extract information from the provided PDF document (an exam paper with an accompanying answer key) and organize it into a table with exactly four columns.
+        const DIRECT_STRUCTURE_PROMPT = `You will be provided with TEXT CONTENT that has been extracted from an exam paper (which might also include an answer key). Your task is to carefully analyze this text and organize the relevant information into a Markdown table with exactly four columns.
 The required columns are:
-Section: The name of the section from the document (e.g., 'Section A: Grammar', 'Section I: Comprehension (Open-ended)').
-Q.X and Question: The question number (e.g., 'Q.1', 'Q.71') followed by the full text of the question itself, if one is present on that line or clearly associated with that number. If the row represents a general section header or instruction line without a specific question number, use '-'.
-Answer: The corresponding answer for the question number, taken directly from the provided answer key, with no explanation. If the row does not have a specific question/answer associated with it, use '-'.
-Instructions: Populate this column with the actual, specific instruction text found in the document that is most relevant to that row or the block of questions/tasks the row belongs to. Do not just write the word 'Instruction'. For example, use text like 'Shade your answer (1, 2, 3 or 4) on the Optical Answer Sheet.' or 'Fill in each blank with a suitable word.' or 'Read this passage carefully and answer the questions 71 to 80.' Apply the relevant instruction text logically to the rows it pertains to.
-The final output must be formatted as a plain text Markdown table.
-Crucially: Ensure the output is only the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (\`\`\`), format it as a code block, or use any formatting other than the plain text Markdown table structure.`;
+Section: The name of the section identified in the text (e.g., 'Section A: Grammar', 'Section I: Comprehension (Open-ended)'). If no specific section name applies to a row, use '-'.
+Q.X and Question: The question number (e.g., 'Q.1', 'Q.71') followed by the full text of the question itself, if one is present or clearly associated with that number in the provided text. If the row represents a general section header or instruction line without a specific question number, use '-'.
+Answer: The corresponding answer for the question number, taken directly from the provided text (if an answer key section is present), with no explanation. If the row does not have a specific question/answer associated with it in the text, or no answer key is present for it, use '-'.
+Instructions: Populate this column with the actual, specific instruction text found in the document text that is most relevant to that row or the block of questions/tasks the row belongs to. Do not just write the word 'Instruction'. For example, use text like 'Shade your answer (1, 2, 3 or 4) on the Optical Answer Sheet.' or 'Fill in each blank with a suitable word.' or 'Read this passage carefully and answer the questions 71 to 80.' Apply the relevant instruction text logically to the rows it pertains to. If no specific instruction applies to a row, use '-'.
 
+The final output must be formatted as a plain text Markdown table.
+Crucially: Ensure the output is ONLY the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (\`\`\`), format it as a code block, or use any formatting other than the plain text Markdown table structure. Do not include any introductory phrases like "Okay, here is the table:" or any concluding remarks.
+`;
+
+        const TAGGING_PROMPT = `You are an expert text analysis assistant. Your task is to analyze the provided TEXT CONTENT, which has been extracted from an exam paper.
+Identify distinct segments of the text and tag each segment with ONLY ONE of the following types: 'SECTION', 'QUESTION', 'ANSWER', or 'INSTRUCTION'.
+- 'SECTION': A major section heading (e.g., "Section A: Grammar", "Part 1").
+- 'QUESTION': The full text of a question, including its number (e.g., "Q.1 What is the capital of France?").
+- 'ANSWER': The answer corresponding to a question.
+- 'INSTRUCTION': Instructions for a question, a set of questions, or a section (e.g., "Choose the best option.", "Write your answers in the space provided.").
+
+Your output MUST be a valid JSON array of objects. Each object in the array must have exactly two keys:
+1.  "type": A string, one of 'SECTION', 'QUESTION', 'ANSWER', 'INSTRUCTION'.
+2.  "content": A string, the full text content of the identified segment.
+
+Example Output:
+[
+  { "type": "SECTION", "content": "Section A: Multiple Choice" },
+  { "type": "INSTRUCTION", "content": "For each question, select the best answer." },
+  { "type": "QUESTION", "content": "Q.1 What is 2+2?" },
+  { "type": "ANSWER", "content": "4" }
+]
+
+IMPORTANT:
+- Output ONLY the JSON array. Do not include any other text, explanation, or conversational elements before or after the JSON array.
+- Ensure the JSON is well-formed.
+- Tag contiguous blocks of text. Do not break a single question or instruction into multiple tagged segments unless they are truly distinct items.
+- If a line contains both a question number and the question text, tag it all as 'QUESTION'.
+`;
 
         document.addEventListener('DOMContentLoaded', () => {
             if (DEBUG_MODE) console.log("DOM loaded");
@@ -302,33 +392,50 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             transcribeBtn.disabled = true;
             setupDebugToggle();
             initializeOcrPreviewCanvas();
+            updateActivePromptDisplay(); 
             resetLogAreas();
-            llmPromptDisplayEl.textContent = USER_LLM_PROMPT; 
 
             enableLayoutAnalysisCheckbox.addEventListener('change', function() {
                 showOcrBlocksCheckbox.disabled = !this.checked;
                 if (!this.checked) showOcrBlocksCheckbox.checked = false;
             });
-             if (!enableLayoutAnalysisCheckbox.checked) showOcrBlocksCheckbox.disabled = true;
+            if (!enableLayoutAnalysisCheckbox.checked) showOcrBlocksCheckbox.disabled = true;
+
+            if(processingModeSelectEl) {
+                processingModeSelectEl.addEventListener('change', updateActivePromptDisplay);
+            }
+            if(processManualInputBtnEl) {
+                processManualInputBtnEl.addEventListener('click', handleManualInputProcessing);
+            }
         });
 
-        function initializeOcrPreviewCanvas() {
-            // ... (same as your version)
+        function updateActivePromptDisplay() {
+            const selectedMode = processingModeSelectEl.value;
+            if (selectedMode === 'directStructure') {
+                llmPromptDisplayEl.textContent = DIRECT_STRUCTURE_PROMPT;
+                manualInputLabelEl.className = 'block text-sm font-medium text-gray-700 mb-1 manual-input-markdown-label';
+                manualMarkdownInputEl.placeholder = "| Section | Q.X and Question | Answer | Instructions |\n|---|---|---|---|\n| ... | ... | ... | ... |";
+            } else if (selectedMode === 'tagAndAssemble') {
+                llmPromptDisplayEl.textContent = TAGGING_PROMPT;
+                manualInputLabelEl.className = 'block text-sm font-medium text-gray-700 mb-1 manual-input-json-label';
+                manualMarkdownInputEl.placeholder = '[\n  { "type": "SECTION", "content": "Section A" },\n  { "type": "QUESTION", "content": "Q.1 ..." },\n  ...\n]';
+            }
+        }
+
+        function initializeOcrPreviewCanvas() { 
             const ctx = ocrPreviewCanvas.getContext('2d');
             ocrPreviewCanvas.width = 600; ocrPreviewCanvas.height = 400;
             ctx.fillStyle = "#eee"; ctx.fillRect(0, 0, 600, 400);
             ctx.fillStyle = "#ccc"; ctx.textAlign = "center"; ctx.font = "16px Inter";
             ctx.fillText("OCR Preview Area", 300, 200);
         }
-
-        function resetLogAreas() {
-            // ... (same as your version)
+        function resetLogAreas() { 
             if (liveOcrTextEl) liveOcrTextEl.textContent = 'Waiting for page processing...';
-            if (transcriptionLogEl) transcriptionLogEl.textContent = 'Full transcribed text (input to LLM Proxy) will appear here...\n'; // MODIFIED LOG TITLE
+            if (transcriptionLogEl) transcriptionLogEl.textContent = 'Full transcribed text (input to LLM Proxy) will appear here...\n';
+            if (llmLiveOutputEl) llmLiveOutputEl.textContent = 'Waiting for LLM stream...';
+            if (llmLiveOutputContainerEl) llmLiveOutputContainerEl.classList.add('hidden');
         }
-
         function appendToLog(message, isFullLog = false) {
-            // ... (same as your version)
             if (!transcriptionLogEl) return;
             if (isFullLog) { 
                 transcriptionLogEl.textContent = message;
@@ -340,10 +447,8 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             }
             transcriptionLogEl.scrollTop = transcriptionLogEl.scrollHeight;
         }
-        
-        function updateLiveOcrTextDisplay(pageData, currentPage, totalPages) {
-            // ... (same as your version)
-            if (!liveOcrTextEl) return;
+        function updateLiveOcrTextDisplay(pageData, currentPage, totalPages) { 
+             if (!liveOcrTextEl) return;
             if (!pageData) {
                 liveOcrTextEl.textContent = `Page ${currentPage}/${totalPages}: No text data for live preview.`;
                 return;
@@ -361,9 +466,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             liveOcrTextEl.textContent = displayText;
             liveOcrTextEl.scrollTop = 0;
         }
-
-        function setupDebugToggle() {
-            // ... (same as your version)
+        function setupDebugToggle() { 
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || DEBUG_MODE) {
                 const btn = document.createElement('button'); btn.id = 'debugToggle';
                 btn.textContent = `Debug: ${DEBUG_MODE ? 'ON' : 'OFF'}`;
@@ -371,8 +474,6 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 document.body.appendChild(btn);
             }
         }
-
-        // ... (event listeners for dropArea, fileInput, removeFile are same as your version)
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); }, false));
         ['dragenter', 'dragover'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.add('active'), false));
         ['dragleave', 'drop'].forEach(evt => dropArea.addEventListener(evt, () => dropArea.classList.remove('active'), false));
@@ -380,10 +481,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
         dropArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', e => handleFiles(e.target.files));
         removeFile.addEventListener('click', resetFileInput);
-
-
-        function handleFiles(files) {
-            // ... (same as your version)
+        function handleFiles(files) { 
             if (DEBUG_MODE) console.log("handleFiles:", files);
             if (files.length > 0 && files[0].type === 'application/pdf') {
                 currentPdfFile = files[0]; selectedFile = files[0];
@@ -391,23 +489,23 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 transcribeBtn.disabled = false; hideError(); resultSection.classList.add('hidden');
                 resultBody.innerHTML = ''; noResultsMessage.classList.add('hidden');
                 exportCsv.disabled = true; exportExcel.disabled = true;
-                ocrPreviewContainer.classList.add('hidden'); resetLogAreas();
+                ocrPreviewContainer.classList.add('hidden'); 
+                resetLogAreas();
             } else { showError('Please select a PDF file.'); resetFileInput(); }
         }
-        function resetFileInput() {
-            // ... (same as your version)
+        function resetFileInput() { 
             fileInput.value = ''; selectedFile = null; currentPdfFile = null;
             fileInfo.classList.add('hidden'); fileNameElem.textContent = '';
             transcribeBtn.disabled = true; hideError(); resultSection.classList.add('hidden');
             resultBody.innerHTML = ''; noResultsMessage.classList.add('hidden');
             exportCsv.disabled = true; exportExcel.disabled = true;
-            hideOcrPreview(); resetLogAreas();
+            hideOcrPreview(); 
+            resetLogAreas();
         }
-
         function showProcessingIndicator(statusMsg, subStatus = '', progress = null) {
-            // ... (same as your version)
-             processingStatus.textContent = statusMsg; processingSubStatus.textContent = subStatus;
+            processingStatus.textContent = statusMsg; processingSubStatus.textContent = subStatus;
             processingIndicator.classList.remove('hidden'); transcribeBtn.disabled = true;
+            if(processManualInputBtnEl) processManualInputBtnEl.disabled = true; 
             const bar = document.getElementById('processingProgressBar'); if (bar) bar.remove();
             if (progress !== null && progress >= 0) {
                 const pBar = document.createElement('div'); pBar.id = 'processingProgressBar';
@@ -416,26 +514,23 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 progressBarContainer.appendChild(pBar);
                 if (subStatus && !subStatus.includes('%') && progress > 0) processingSubStatus.textContent = `${subStatus} (${progress.toFixed(0)}%)`;
             } else progressBarContainer.innerHTML = '';
-        }
-        function hideProcessingIndicator() {
-            // ... (same as your version)
+         }
+        function hideProcessingIndicator() { 
             processingIndicator.classList.add('hidden'); progressBarContainer.innerHTML = '';
-            if (currentPdfFile) transcribeBtn.disabled = false;
+            if (currentPdfFile) transcribeBtn.disabled = false; // Only enable if a file is selected
+            else transcribeBtn.disabled = true;
+            if(processManualInputBtnEl) processManualInputBtnEl.disabled = false;
         }
-        function showError(msg) {
-            // ... (same as your version)
+        function showError(msg) { 
             const dMsg = msg || 'An error occurred.';
             errorMessage.querySelector('p').textContent = dMsg; errorMessage.classList.remove('hidden');
             errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
             if (DEBUG_MODE) console.error("showError:", dMsg);
         }
-        function hideError() {
-            // ... (same as your version)
+        function hideError() { 
             errorMessage.classList.add('hidden'); errorMessage.querySelector('p').textContent = '';
         }
-
-        function showOcrPreview(imgUrl, current, total, ocrBlocksData = null) {
-            // ... (same as your version)
+        function showOcrPreview(imgUrl, current, total, ocrBlocksData = null) { 
             if (DEBUG_MODE) console.log(`OCR preview page ${current}/${total}`, ocrBlocksData ? "with blocks" : "");
             const canvas = ocrPreviewCanvas, ctx = canvas.getContext('2d'), img = new Image();
             img.onload = () => {
@@ -451,13 +546,10 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             ocrPreviewPageInfo.textContent = `Page ${current} of ${total}`;
             ocrPreviewContainer.classList.remove('hidden');
         }
-        function hideOcrPreview() {
-            // ... (same as your version)
+        function hideOcrPreview() { 
             ocrPreviewContainer.classList.add('hidden'); initializeOcrPreviewCanvas(); ocrPreviewPageInfo.textContent = 'Page X of Y';
         }
-
-        function checkOcrCompatibility() {
-            // ... (same as your version)
+        function checkOcrCompatibility() { 
             if (navigator.deviceMemory && navigator.deviceMemory < 4) memoryWarningDiv.classList.remove('hidden');
             const ocrSettingsElements = [forceOcrCheckbox, enableLayoutAnalysisCheckbox, showOcrBlocksCheckbox, document.getElementById('llmModelOptions')]; 
             if (typeof WebAssembly === 'undefined') {
@@ -471,21 +563,21 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             }
         }
         function determineOptimalOcrScale(size) { 
-            // ... (same as your version)
             return size > 30e6 ? 1.0 : (size > 10e6 ? 1.5 : 2.0);
         }
 
-        // --- Main Transcription Button ---
         transcribeBtn.addEventListener('click', async () => {
-            // This is mostly your version, ensuring selectedLlmModel is correctly fetched and passed
             if (DEBUG_MODE) console.log("Transcribe button clicked.");
             if (!currentPdfFile) { showError('Please select a PDF file.'); return; }
-            resetLogAreas();
-            try {
-                hideError();
-                showProcessingIndicator('Starting transcription & structuring...');
-                resultSection.classList.add('hidden'); extractedData = [];
+            
+            resetLogAreas(); 
+            hideError();
+            resultSection.classList.add('hidden'); 
+            extractedData = [];
 
+            try {
+                showProcessingIndicator('Starting PDF transcription...');
+                
                 const pdfContentData = await extractTextFromPdf(currentPdfFile, {
                     forceOcr: forceOcrCheckbox.checked,
                     ocrScale: determineOptimalOcrScale(currentPdfFile.size),
@@ -493,58 +585,36 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 });
 
                 const rawFullText = (typeof pdfContentData === 'object' && pdfContentData.text) ? pdfContentData.text : (typeof pdfContentData === 'string' ? pdfContentData : '');
-                appendToLog(rawFullText || "No text extracted from PDF to send to LLM Proxy.", true);  // MODIFIED LOG TEXT
+                appendToLog(rawFullText || "No text extracted from PDF to send to LLM Proxy.", true);  
 
                 if (rawFullText && rawFullText.trim().length > 0) {
-                    const selectedLlmModel = llmModelSelectEl.value; 
-                    const selectedLlmModelText = llmModelSelectEl.options[llmModelSelectEl.selectedIndex].text; 
+                    const selectedLlmModel = llmModelSelectEl.value;
+                    const currentProcessingMode = processingModeSelectEl.value;
+                    let activePrompt = (currentProcessingMode === 'tagAndAssemble') ? TAGGING_PROMPT : DIRECT_STRUCTURE_PROMPT;
                     
-                    if (DEBUG_MODE) console.log("Selected LLM Model for processing:", selectedLlmModel, `(${selectedLlmModelText})`);
-
-                    showProcessingIndicator(`Sending to ${selectedLlmModelText} for structuring...`);
-                    if (DEBUG_MODE) console.log("Raw text extracted, sending to LLM function via proxy.");
+                    if (DEBUG_MODE) console.log("Processing Mode:", currentProcessingMode, "Using Prompt:", activePrompt.substring(0,100)+"...");
                     
-                    const markdownTableFromLlm = await callLlmToStructureData(rawFullText, USER_LLM_PROMPT, selectedLlmModel); 
-                    
-                    // --- Log raw response from LLM in Browser Console (if DEBUG_MODE) ---
-                    if (DEBUG_MODE) {
-                        console.log("--- Raw LLM Response Received by Frontend ---");
-                        console.log(markdownTableFromLlm);
-                        console.log("--- End of Raw LLM Response ---");
-                    }
-                    // --- End of Log ---
-
-                    if (markdownTableFromLlm && markdownTableFromLlm.trim() !== '' && !markdownTableFromLlm.startsWith("| Error |")) { 
-                        showProcessingIndicator('Parsing LLM output...');
-                        extractedData = parseMarkdownTableToObjects(markdownTableFromLlm);
-                        if (DEBUG_MODE) console.log("Parsed objects from Markdown:", extractedData);
-                    } else {
-                        extractedData = [];
-                        if(DEBUG_MODE) console.warn("LLM returned empty, no Markdown table, or an error was indicated by the proxy.");
-                        // Error message should have already been shown by callLlmToStructureData if it returned the error placeholder
-                    }
-                    
-                    displayResults(extractedData); 
-                    resultSection.classList.remove('hidden');
-                    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    await callLlmToStructureData(rawFullText, activePrompt, selectedLlmModel, currentProcessingMode);
                 } else {
                     if (DEBUG_MODE) console.warn("No text extracted from PDF to process.");
                     showError('Could not extract text from PDF. Cannot proceed with LLM structuring.');
                     noResultsMessage.textContent = "No text extracted from PDF to send to LLM.";
                     noResultsMessage.classList.remove('hidden');
+                    resultSection.classList.add('hidden'); 
                     exportCsv.disabled = true; exportExcel.disabled = true;
+                    hideProcessingIndicator(); 
                 }
             } catch (error) {
                 console.error('Transcription/Structuring error:', error);
                 showError(error.name === 'OcrError' ? (error.message || 'OCR failed.') : `Error: ${error.message || 'Unknown error'}`);
-                resultSection.classList.add('hidden'); exportCsv.disabled = true; exportExcel.disabled = true;
-            } finally {
-                hideProcessingIndicator();
+                resultSection.classList.add('hidden');
+                llmLiveOutputContainerEl.classList.add('hidden');
+                exportCsv.disabled = true; exportExcel.disabled = true;
+                hideProcessingIndicator(); 
             }
         });
 
-        async function extractTextFromPdf(file, options = {}) {
-            // ... (This function should be your last working version - no changes needed here for LLM selection)
+        async function extractTextFromPdf(file, options = {}) { 
             if (DEBUG_MODE) console.log("extractTextFromPdf. Options:", options);
             const { forceOcr, ocrScale, enableLayoutAnalysis } = options;
             let pdf = null;
@@ -577,14 +647,12 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                         await page.render({ canvasContext: tempCanvas.getContext('2d'), viewport: ocrViewport }).promise;
                         imageDataForPreview = tempCanvas.toDataURL('image/png');
                         const ocrResult = await performOcr(imageDataForPreview, i, numPages);
-                        pageTextContent = ocrResult.text; 
+                        pageTextContent = ocrResult.text || ""; 
                         pageSpecificDataForLog = ocrResult; 
-                        appendToLog(`--- Page ${i} (OCR Result) ---\nConfidence: ${ocrResult.confidence?.toFixed(2) || 'N/A'}%\n${ocrResult.text}\n\n`);
                         tempCanvas.width = 0; tempCanvas.height = 0;
                     } else {
                         if (DEBUG_MODE) console.log(`Page ${i}: Using native text.`);
                         pageSpecificDataForLog = { text: pageTextContent }; 
-                        appendToLog(`--- Page ${i} (Native PDF Text) ---\n${pageTextContent}\n\n`);
                         const displayViewport = page.getViewport({ scale: Math.min(1.5, ocrScale) }); 
                         const tempCanvas = document.createElement('canvas');
                         tempCanvas.width = Math.floor(displayViewport.width); tempCanvas.height = Math.floor(displayViewport.height);
@@ -595,7 +663,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                     combinedTextForAllPages += pageTextContent + "\n\n"; 
                     if(enableLayoutAnalysis && requiresOcr) fullTextReturn.pages.push({ pageNumber: i, ocrData: pageSpecificDataForLog });
                     else if(enableLayoutAnalysis) fullTextReturn.pages.push({ pageNumber: i, nativeText: pageTextContent });
-                    updateLiveOcrTextDisplay(pageSpecificDataForLog, i, numPages);
+                    updateLiveOcrTextDisplay(pageSpecificDataForLog, i, numPages); 
                     if (imageDataForPreview) showOcrPreview(imageDataForPreview, i, numPages, requiresOcr && enableLayoutAnalysis ? pageSpecificDataForLog : null);
                     page.cleanup();
                 }
@@ -608,17 +676,15 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 throw new Error(`Failed to process PDF: ${error.message || String(error)}`);
             }
         }
-        
-        async function performOcr(imageData, currentPage, totalPages) {
-            // ... (This function should be your last working version)
-            if (DEBUG_MODE) console.log(`performOcr page ${currentPage}/${totalPages}`);
+        async function performOcr(imageData, currentPage, totalPages) { 
+             if (DEBUG_MODE) console.log(`performOcr page ${currentPage}/${totalPages}`);
             let worker = null;
             try {
                 worker = await Tesseract.createWorker({
                     logger: m => {
                         let progress = (m.progress && typeof m.progress === 'number') ? m.progress * 100 : null;
                         if (DEBUG_MODE) console.log(`Tesseract (${currentPage}/${totalPages}): ${m.status}`, m.progress || '');
-                        if (m.status && (m.status !== 'recognizing text' || (progress !== null && progress > 0))) {
+                        if (m.status && (m.status !== 'recognizing text' || (progress !== null && progress > 0 && progress < 100))) { 
                              showProcessingIndicator(`Processing page ${currentPage}/${totalPages}...`, `OCR: ${m.status}`, progress);
                         }
                     }
@@ -627,7 +693,7 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
                 await worker.setParameters({ tessedit_pageseg_mode: Tesseract.PSM.AUTO_OSD, preserve_interword_spaces: '1' });
                 const result = await worker.recognize(imageData);
                 await worker.terminate(); worker = null;
-                return result.data;
+                return result.data; 
             } catch (error) {
                 console.error(`OCR Error page ${currentPage}:`, error);
                 if (worker) try { await worker.terminate(); } catch (e) { console.error("Tesseract terminate error", e); }
@@ -636,151 +702,329 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             }
         }
 
-        // --- LLM Call via Backend Proxy ---
-        async function callLlmToStructureData(rawText, llmPrompt, selectedModel) { 
-            // This function is mostly your version, ensuring selectedModel is correctly included in the body
+        async function callLlmToStructureData(rawText, activePrompt, selectedModel, currentProcessingMode) {
+            const PROXY_URL = 'http://localhost:3001/api/llm-structure';
+            const modelValue = selectedModel.toLowerCase();
+            const isPotentiallyStreamable = modelValue.includes('ollama') || modelValue.includes('gemini');
+
             if (DEBUG_MODE) {
-                console.log(`Calling backend proxy for LLM structuring. Model: ${selectedModel}, Prompt (start):`, llmPrompt.substring(0,100)+"...");
-                console.log("Raw text input to backend (first 500 chars):", rawText.substring(0, 500));
+                console.log(`callLlmToStructureData: Model=${selectedModel}, Mode=${currentProcessingMode}, StreamableHint=${isPotentiallyStreamable}`);
+                console.log("Raw text input to backend (length):", rawText.length);
+                console.log("Active Prompt (first 100):", activePrompt.substring(0,100)+"...");
             }
-            const PROXY_URL = 'http://localhost:3001/api/llm-structure'; 
+            
+            const selectedLlmModelText = llmModelSelectEl.options[llmModelSelectEl.selectedIndex].text;
+            showProcessingIndicator(`Communicating with ${selectedLlmModelText}...`, isPotentiallyStreamable ? 'Attempting to stream...' : 'Waiting for response...');
+
+            let llmRawOutput = ""; 
 
             try {
                 const response = await fetch(PROXY_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        rawText: rawText,
-                        llmPrompt: llmPrompt,
-                        selectedModel: selectedModel 
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json' }, 
+                    body: JSON.stringify({ rawText: rawText, llmPrompt: activePrompt, selectedModel: selectedModel })
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ error: "Unknown error from proxy", details: { message: `Proxy server returned ${response.status}` } }));
-                    console.error('Error from proxy server:', response.status, errorData);
-                    let detailMessage = "Unknown error";
-                    if (errorData.details && errorData.details.message) {
-                        detailMessage = errorData.details.message;
-                    } else if (errorData.error) {
-                        detailMessage = errorData.error;
-                    }
-                    showError(`Proxy error (${response.status}): ${detailMessage}. Check backend console.`);
-                    // throw new Error(`Proxy error: ${response.status} - ${detailMessage}`); // Let it return the error placeholder instead
-                    return "| Error | Proxy | Error | See Logs |\n|---|---|---|---|\n"; // Return placeholder on error
+                    showError(`LLM Proxy error (${response.status}): ${errorData.details?.message || errorData.error || 'Unknown proxy error'}`);
+                    extractedData = parseMarkdownTableToObjects("| Error | Proxy Error | " + response.status + " | See Logs |\n|---|---|---|---|\n");
+                    displayResults(extractedData);
+                    return; 
                 }
 
-                const data = await response.json();
-                // DEBUG_MODE log for raw table already moved to transcribeBtn listener for clarity
-                return data.markdownTable; 
-            } catch (error) { 
-                console.error('Error in callLlmToStructureData (fetch or network issue):', error);
-                showError(`LLM Comms Error: ${error.message}. Check backend console.`);
-                return "| Error | Communicating | With | LLM |\n|---|---|---|---|\n| See console | for | details | ... |";
+                const contentType = response.headers.get("Content-Type");
+                if (contentType && contentType.includes("text/event-stream") && isPotentiallyStreamable) {
+                    if (DEBUG_MODE) console.log("Received text/event-stream from server. Processing as stream.");
+                    llmLiveOutputContainerEl.classList.remove('hidden');
+                    llmLiveOutputContainerEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    llmLiveOutputEl.textContent = ''; 
+                    processingSubStatus.textContent = 'Streaming response...';
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) { if (DEBUG_MODE) console.log("LLM Stream ended (reader.read done)."); break; }
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        let events = buffer.split('\n\n'); 
+                        buffer = events.pop() || ''; 
+                        for (const eventStr of events) {
+                            if (eventStr.trim() === '') continue;
+                            const dataLines = eventStr.split('\n').filter(l => l.startsWith('data: '));
+                            for (const dataLine of dataLines) {
+                                try {
+                                    const jsonData = JSON.parse(dataLine.substring(6).trim()); 
+                                    if (jsonData.type === 'chunk' && typeof jsonData.content === 'string') {
+                                        llmLiveOutputEl.textContent += jsonData.content;
+                                        llmRawOutput += jsonData.content;
+                                        llmLiveOutputEl.scrollTop = llmLiveOutputEl.scrollHeight;
+                                    } else if (jsonData.type === 'done') { /* Handled by reader.done */ } 
+                                    else if (jsonData.type === 'error') { showError(`LLM Stream Error: ${jsonData.message}`); }
+                                } catch (e) { if (DEBUG_MODE) console.warn("Error parsing SSE data line:", dataLine, e); }
+                            }
+                        }
+                    }
+                     if (buffer.trim().startsWith('data: ')) { 
+                        try {
+                            const jsonData = JSON.parse(buffer.substring(6).trim());
+                            if (jsonData.type === 'chunk' && typeof jsonData.content === 'string') {
+                                llmLiveOutputEl.textContent += jsonData.content;
+                                llmRawOutput += jsonData.content;
+                            }
+                        } catch (e) { /* ignore if incomplete */ }
+                    }
+                } else {
+                    if (DEBUG_MODE) console.log("Received non-streaming response. Content-Type:", contentType);
+                    llmLiveOutputContainerEl.classList.add('hidden'); 
+                    const responseText = await response.text();
+                    llmRawOutput = responseText;
+                }
+                
+                processingSubStatus.textContent = 'Processing LLM output...';
+                if (currentProcessingMode === 'directStructure') {
+                    if (DEBUG_MODE) console.log("Processing as directStructure. Raw Output (first 500):", llmRawOutput.substring(0,500));
+                    let cleanedMarkdown = llmRawOutput;
+                    const markdownTableMatch = cleanedMarkdown.match(/(\|(?:[^\r\n\|]+\|)+[\r\n]+)((?:\|(?:[-:]+\|)+[\r\n]+))((?:\|(?:[^\r\n\|]+\|)+[\r\n]*)+)/);
+                    if (markdownTableMatch && markdownTableMatch[0]) {
+                        cleanedMarkdown = markdownTableMatch[0];
+                        if (DEBUG_MODE) console.log("Extracted potential Markdown table from raw output.");
+                    } else {
+                        cleanedMarkdown = cleanedMarkdown.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+                        cleanedMarkdown = cleanedMarkdown.replace(/^```markdown\s*[\r\n]?([\s\S]*?)[\r\n]?```$/mg, '$1').trim();
+                        cleanedMarkdown = cleanedMarkdown.replace(/^```\s*[\r\n]?([\s\S]*?)[\r\n]?```$/mg, '$1').trim();
+                        if (DEBUG_MODE) console.log("Attempted to clean non-table Markdown output.");
+                    }
+                    extractedData = parseMarkdownTableToObjects(cleanedMarkdown);
+
+                } else if (currentProcessingMode === 'tagAndAssemble') {
+                    if (DEBUG_MODE) console.log("Processing as tagAndAssemble. Raw Output (first 500):", llmRawOutput.substring(0,500));
+                    let jsonString = llmRawOutput;
+                    const jsonMatch = jsonString.match(/(\[[\s\S]*\])/); 
+                    if (jsonMatch && jsonMatch[1]) {
+                        jsonString = jsonMatch[1];
+                        if (DEBUG_MODE) console.log("Extracted potential JSON array from raw output:", jsonString.substring(0, 200) + "...");
+                    } else {
+                        if (DEBUG_MODE) console.log("Could not find clear JSON array with [...]. Attempting to clean common tags.");
+                        jsonString = jsonString.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+                        jsonString = jsonString.replace(/^```json\s*[\r\n]?([\s\S]*?)[\r\n]?```$/mg, '$1').trim();
+                        jsonString = jsonString.replace(/^```\s*[\r\n]?([\s\S]*?)[\r\n]?```$/mg, '$1').trim();
+                        jsonString = jsonString.replace(/^Okay, here's the JSON array:\s*[\r\n]*/i, '').trim();
+                        jsonString = jsonString.replace(/^Here is the JSON output:\s*[\r\n]*/i, '').trim();
+                    }
+                    try {
+                        const taggedDataArray = JSON.parse(jsonString);
+                        if (!Array.isArray(taggedDataArray)) throw new Error("Extracted content for tagging was not a JSON array.");
+                        extractedData = assembleTableFromTaggedData(taggedDataArray);
+                    } catch (e) {
+                        console.error("Error parsing or assembling tagged JSON output:", e, "\nCleaned JSON String Attempt:", jsonString.substring(0,1000), "\nOriginal Raw Output:", llmRawOutput.substring(0,1000));
+                        showError(`Failed to process tagged output: ${e.message}. Expected JSON. Check console and LLM's raw output.`);
+                        extractedData = [];
+                    }
+                }
+                displayResults(extractedData);
+                if (resultSection && !resultSection.classList.contains('hidden')) resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                else if (!llmLiveOutputContainerEl.classList.contains('hidden') && llmLiveOutputEl.textContent.trim() !== 'Waiting for LLM stream...') llmLiveOutputContainerEl.scrollIntoView({behavior: 'smooth', block: 'start'});
+
+            } catch (error) {
+                console.error('Error in callLlmToStructureData (fetch or processing):', error);
+                showError(`LLM Comms/Processing Error: ${error.message}. Check backend console.`);
+                extractedData = parseMarkdownTableToObjects("| Error | Processing | LLM | Failed |\n|---|---|---|---|\n");
+                displayResults(extractedData);
+                llmLiveOutputContainerEl.classList.add('hidden');
+            } finally {
+                hideProcessingIndicator();
             }
         }
-
-        // --- Markdown Table Parser ---
-        function parseMarkdownTableToObjects(markdownTableString) {
-            // ... (This function should be your last working version)
-            if (DEBUG_MODE) console.log("Parsing Markdown Table (input string):\n", markdownTableString); // Added (input string) for clarity
+        
+        function parseMarkdownTableToObjects(markdownTableString) { 
+            if (DEBUG_MODE) console.log("Parsing Markdown Table (Raw Input String):\n---\n" + markdownTableString + "\n---");
             const objects = [];
-            if (!markdownTableString || typeof markdownTableString !== 'string' || markdownTableString.startsWith("| Error |")) {
-                if (DEBUG_MODE) console.error("Markdown input is invalid, empty, or indicates an error from LLM/Proxy.");
+            if (!markdownTableString || typeof markdownTableString !== 'string' || markdownTableString.trim() === '' || markdownTableString.startsWith("| Error |")) {
+                if (DEBUG_MODE) console.error("Markdown input is invalid, empty, indicates an error from LLM/Proxy, or is just whitespace.");
                 return objects;
             }
-            const lines = markdownTableString.trim().split('\n');
+            const lines = markdownTableString.trim().split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
             if (lines.length < 2) { 
-                 if (DEBUG_MODE) console.warn("Markdown table has too few lines to parse.");
+                if (DEBUG_MODE) console.warn("Markdown table has too few non-empty lines to parse. Lines found:", lines);
                 return objects;
             }
-            const headerLine = lines[0].trim();
+            let headerLineIndex = -1;
+            for(let i=0; i < lines.length; i++) { if(lines[i].startsWith('|') && lines[i].endsWith('|') && lines[i].includes('|')) { headerLineIndex = i; break; } }
+            if (headerLineIndex === -1) { if (DEBUG_MODE) console.warn("No valid header line found."); return objects; }
+            const headerLine = lines[headerLineIndex];
+            if (DEBUG_MODE) console.log("Identified Header Line (index " + headerLineIndex + "):", headerLine);
+            let separatorLineIndex = -1;
+            for (let i = headerLineIndex + 1; i < lines.length; i++) { if (lines[i].match(/^\|?[-:| ]+\|?$/) && lines[i].includes('-') && lines[i].includes('|')) { separatorLineIndex = i; break; } }
+            if (separatorLineIndex === -1) { if (DEBUG_MODE) console.warn("No valid separator line found after header."); return objects; }
+            if (DEBUG_MODE) console.log("Identified Separator Line (index " + separatorLineIndex + "):", lines[separatorLineIndex]);
             let rawHeaders = headerLine;
             if (rawHeaders.startsWith('|')) rawHeaders = rawHeaders.substring(1);
             if (rawHeaders.endsWith('|')) rawHeaders = rawHeaders.substring(0, rawHeaders.length - 1);
-            const headers = rawHeaders.split('|').map(h => h.trim().toLowerCase().replace(/[^a-z0-9]/gi, '')); 
+            const headers = rawHeaders.split('|').map(h => h.trim());
+            if (DEBUG_MODE) console.log("Raw Headers Extracted:", headers);
             const expectedHeadersMap = {
                 section: 'section', qxandquestion: 'questionText', questionnumberandquestion: 'questionText', 
                 questiontext: 'questionText', question: 'questionText', answer: 'answer', 
                 instructions: 'instructions', instruction: 'instructions'
             };
             const columnMap = headers.map(h_raw => {
-                const h = h_raw.replace(/[^a-z0-9]/gi, ''); 
-                for (const key in expectedHeadersMap) {
-                    if (h === key || h.includes(key)) return expectedHeadersMap[key];
-                }
-                 if (DEBUG_MODE) console.warn(`Unknown header "${h_raw}" (cleaned: "${h}") encountered in Markdown table.`);
-                return `unknown_${h_raw.replace(/\s+/g, '_')}`; 
+                const h_cleaned = h_raw.toLowerCase().replace(/[^a-z0-9]/gi, '');
+                for (const key in expectedHeadersMap) { if (h_cleaned === key || (h_cleaned.length > 2 && key.includes(h_cleaned)) || (key.length > 2 && h_cleaned.includes(key))) { return expectedHeadersMap[key]; } }
+                if (DEBUG_MODE) console.warn(`Unknown header "${h_raw}" (cleaned: "${h_cleaned}") encountered. Will use as is: "${h_raw.replace(/\s+/g, '_')}"`);
+                return h_raw.replace(/\s+/g, '_') || `unknown_column_${Math.random().toString(36).substring(7)}`;
             });
-            if (DEBUG_MODE) console.log("Effective column map for parsing:", columnMap);
-            for (let i = 2; i < lines.length; i++) { 
-                const line = lines[i].trim();
-                if (!line.startsWith('|') || !line.endsWith('|')) {
-                    if (DEBUG_MODE && line.length > 0 && !line.match(/^\|?-+--?\|?$/)) console.warn("Skipping malformed Markdown line:", line);
-                    continue;
-                }
-                const values = line.substring(1, line.length -1).split('|').map(v => v.trim());
+            if (DEBUG_MODE) console.log("Effective column map for parsing:", columnMap, "based on headers:", headers);
+            for (let i = separatorLineIndex + 1; i < lines.length; i++) {
+                const line = lines[i]; 
+                if (!line.startsWith('|') || !line.endsWith('|') || !line.includes('|')) { if (DEBUG_MODE && line.length > 0) console.warn("Skipping line (not valid table row):", `"${line}"`); continue; }
+                if (line.match(/^\|?[-:| ]+\|?$/) && line.includes('-')) { if (DEBUG_MODE) console.log("Skipping potential duplicate separator line:", `"${line}"`); continue; }
+                const values = line.substring(1, line.length - 1).split('|').map(v => v.trim());
+                if (values.length !== headers.length) { if (DEBUG_MODE) console.warn(`Skipping row: column count mismatch. Expected ${headers.length}, got ${values.length}. Line: "${line}"`); continue; }
                 const obj = {};
                 let hasData = false;
-                for(let j=0; j < columnMap.length; j++) {
-                    if(columnMap[j] && values[j] !== undefined) {
-                        obj[columnMap[j]] = values[j];
-                        if(values[j] && values[j] !== '-' && values[j].trim() !== '') hasData = true;
-                    } else if (values[j] !== undefined) { 
-                        obj[`column_${j+1}`] = values[j];
-                        if(values[j] && values[j] !== '-' && values[j].trim() !== '') hasData = true;
-                    }
+                for (let j = 0; j < columnMap.length; j++) {
+                    const keyToUse = columnMap[j]; 
+                    const value = values[j] !== undefined ? values[j] : '';
+                    obj[keyToUse] = value;
+                    if (value && value !== '-' && value.trim() !== '') { hasData = true; }
                 }
-                if (!obj.hasOwnProperty('section')) obj.section = '-';
-                if (!obj.hasOwnProperty('questionText')) obj.questionText = '-';
-                if (!obj.hasOwnProperty('answer')) obj.answer = '-';
-                if (!obj.hasOwnProperty('instructions')) obj.instructions = '-';
-                if (hasData || Object.values(obj).some(val => val && val !== '-')) {
-                    objects.push(obj);
-                } else {
-                    if (DEBUG_MODE) console.log("Skipping row with no significant data:", obj);
-                }
+                ['section', 'questionText', 'answer', 'instructions'].forEach(expectedKey => { if (!obj.hasOwnProperty(expectedKey)) { obj[expectedKey] = '-'; } });
+                if (hasData || Object.values(obj).some(val => val && val !== '-' && val.trim() !== '')) { if (DEBUG_MODE) console.log("Parsed Row Data:", JSON.stringify(obj)); objects.push(obj); } 
+                else { if (DEBUG_MODE) console.log("Skipping row (no significant data):", JSON.stringify(obj), `Original line: "${line}"`); }
             }
-            // The existing DEBUG_MODE log for parsed objects is good.
-            if (DEBUG_MODE) console.log("Parsed objects from markdown:", objects);
+            if (DEBUG_MODE) console.log("Final Parsed objects from markdown:", objects);
+            if (objects.length === 0 && lines.length > separatorLineIndex + 1) { if (DEBUG_MODE) console.warn("Parsing completed, but no data objects were created from available lines after separator."); }
             return objects;
         }
-
-        function displayResults(data) {
-            // ... (This function should be your last working version)
-            if (DEBUG_MODE) console.log("displayResults data:", data);
-            resultBody.innerHTML = '';
-            if (!data || data.length === 0) {
-                noResultsMessage.textContent = "No structured data returned from LLM processing or parsing, or the data was empty.";
-                noResultsMessage.classList.remove('hidden');
-                exportCsv.disabled = true; exportExcel.disabled = true;
-                return;
+        
+        function assembleTableFromTaggedData(taggedDataArray) {
+            if (DEBUG_MODE) console.log("Assembling table from tagged data:", taggedDataArray);
+            const assembledRows = [];
+            if (!Array.isArray(taggedDataArray)) {
+                console.error("Input to assembleTableFromTaggedData is not an array.");
+                showError("Tagged data from LLM was not a valid JSON array.");
+                return assembledRows;
             }
-            noResultsMessage.classList.add('hidden');
-            resultSection.classList.remove('hidden');
-            data.forEach(item => {
-                const row = resultBody.insertRow();
-                row.insertCell().textContent = item.section || item.Section || '-'; 
-                row.insertCell().textContent = item.questionText || item["Q.X and Question"] || item.Question || '-';
-                row.insertCell().textContent = item.answer || item.Answer || '-';
-                row.insertCell().textContent = item.instructions || item.Instructions || '-';
-                Array.from(row.cells).forEach(cell => cell.className = 'px-6 py-4 whitespace-normal text-sm text-gray-700 break-words');
-            });
-            exportCsv.disabled = false; exportExcel.disabled = false;
+
+            let currentSection = "-";
+            let currentInstructionContext = "-"; 
+            let currentRow = null; 
+
+            function createNewRow() {
+                return { section: currentSection, questionText: "-", answer: "-", instructions: currentInstructionContext };
+            }
+            
+            function finalizeAndPushRow(rowToPush) {
+                if (rowToPush && (rowToPush.questionText !== "-" || rowToPush.answer !== "-" || (rowToPush.instructions !== "-" && rowToPush.instructions !== currentInstructionContext) )) {
+                    assembledRows.push({ ...rowToPush });
+                     if (DEBUG_MODE) console.log("Finalized Row:", rowToPush);
+                } else if (rowToPush && DEBUG_MODE) {
+                     console.log("Skipping empty/default row:", rowToPush);
+                }
+            }
+
+            for (const item of taggedDataArray) {
+                if (!item || typeof item.type !== 'string' || typeof item.content !== 'string') {
+                    if (DEBUG_MODE) console.warn("Skipping invalid tagged item:", item);
+                    continue;
+                }
+
+                const type = item.type.toUpperCase();
+                const content = item.content.trim();
+                if (content === "") continue;
+
+                switch (type) {
+                    case 'SECTION':
+                        if (currentRow) finalizeAndPushRow(currentRow); 
+                        currentSection = content;
+                        currentInstructionContext = "-"; 
+                        currentRow = null; 
+                        if (DEBUG_MODE) console.log(`New Section Context: ${currentSection}`);
+                        break;
+
+                    case 'INSTRUCTION':
+                        if (currentRow && currentRow.questionText !== "-") {
+                            currentRow.instructions = (currentRow.instructions === "-" || currentRow.instructions === currentInstructionContext) ? content : `${currentRow.instructions}\n${content}`;
+                        } else {
+                            currentInstructionContext = content;
+                            // If an instruction appears and there's no active question row,
+                            // we hold this instruction context. If a SECTION tag appears next, it gets reset.
+                            // If a QUESTION tag appears next, this instruction will be applied.
+                            // If another INSTRUCTION or ANSWER appears, this could lead to complex scenarios.
+                            // A simple approach is to also create a row for standalone instructions if needed later.
+                        }
+                        if (DEBUG_MODE) console.log(`Instruction found: "${content}". Current row:`, currentRow, `Context Instruction: ${currentInstructionContext}`);
+                        break;
+
+                    case 'QUESTION':
+                        if (currentRow) finalizeAndPushRow(currentRow); 
+                        currentRow = createNewRow(); // Applies currentSection & currentInstructionContext
+                        currentRow.questionText = content;
+                        if (DEBUG_MODE) console.log(`Question started: "${content}". Row:`, currentRow);
+                        break;
+
+                    case 'ANSWER':
+                        if (currentRow && currentRow.questionText !== "-") { 
+                            currentRow.answer = (currentRow.answer === "-") ? content : `${currentRow.answer}\n${content}`;
+                        } else { 
+                            if (DEBUG_MODE) console.warn(`Orphan Answer: "${content}". Creating new row for it.`);
+                            if (currentRow) finalizeAndPushRow(currentRow); // Finalize any previous partial content
+                            currentRow = createNewRow(); // Create a new row for this orphan answer
+                            currentRow.answer = content;
+                            // We might finalize this orphan answer row immediately or wait.
+                            // For simplicity, let's assume an answer without a question is a data point to capture.
+                        }
+                        if (DEBUG_MODE) console.log(`Answer found: "${content}". Row:`, currentRow);
+                        break;
+                    
+                    default:
+                        if (DEBUG_MODE) console.warn("Unknown tag type:", type, "Content:", content);
+                }
+            }
+            if (currentRow) {
+                finalizeAndPushRow(currentRow);
+            }
+
+            if (DEBUG_MODE) console.log("Assembled rows from tagged data:", assembledRows);
+            return assembledRows;
         }
 
-        function exportToCsv(filename, rows) {
-            // ... (This function should be your last working version)
-            const header = ["Section", "Q.X and Question", "Answer", "Instructions"]; 
+        function displayResults(data) { 
+            if (DEBUG_MODE) console.log("displayResults data:", data);
+            resultBody.innerHTML = ''; 
+            
+            if (!data || data.length === 0) {
+                noResultsMessage.textContent = "No structured data could be parsed or displayed.";
+                noResultsMessage.classList.remove('hidden');
+                resultSection.classList.add('hidden'); 
+                exportCsv.disabled = true; exportExcel.disabled = true;
+            } else {
+                noResultsMessage.classList.add('hidden');
+                resultSection.classList.remove('hidden'); 
+                data.forEach(item => {
+                    const row = resultBody.insertRow();
+                    row.insertCell().textContent = item.section || '-'; 
+                    row.insertCell().textContent = item.questionText || '-';
+                    row.insertCell().textContent = item.answer || '-';
+                    row.insertCell().textContent = item.instructions || '-';
+                    Array.from(row.cells).forEach(cell => cell.className = 'px-6 py-4 whitespace-normal text-sm text-gray-700 break-words');
+                });
+                exportCsv.disabled = false; exportExcel.disabled = false;
+            }
+        }
+        function exportToCsv(filename, rows) { 
+             const header = ["Section", "Q.X and Question", "Answer", "Instructions"]; 
             const csvContent = [
                 header.join(','),
                 ...rows.map(r => [
-                    `"${(r.section || r.Section || '-').replace(/"/g, '""')}"`,
-                    `"${(r.questionText || r["Q.X and Question"] || r.Question || '-').replace(/"/g, '""')}"`,
-                    `"${(r.answer || r.Answer || '-').replace(/"/g, '""')}"`,
-                    `"${(r.instructions || r.Instructions || '-').replace(/"/g, '""')}"`
+                    `"${(r.section || '-').replace(/"/g, '""')}"`,
+                    `"${(r.questionText || '-').replace(/"/g, '""')}"`,
+                    `"${(r.answer || '-').replace(/"/g, '""')}"`,
+                    `"${(r.instructions || '-').replace(/"/g, '""')}"`
                 ].join(','))
             ].join('\n');
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); 
@@ -788,30 +1032,75 @@ Crucially: Ensure the output is only the raw Markdown syntax for the table itsel
             link.href = URL.createObjectURL(blob); link.download = filename;
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
-        function exportToExcel(filename, rows) {
-            // ... (This function should be your last working version)
-             const header = ["Section", "Q.X and Question", "Answer", "Instructions"];
+        function exportToExcel(filename, rows) { 
+            const header = ["Section", "Q.X and Question", "Answer", "Instructions"];
             const dataToExport = rows.map(r => ({
-                "Section": r.section || r.Section || '-', 
-                "Q.X and Question": r.questionText || r["Q.X and Question"] || r.Question ||'-',
-                "Answer": r.answer || r.Answer || '-', 
-                "Instructions": r.instructions || r.Instructions || '-'
+                "Section": r.section || '-', 
+                "Q.X and Question": r.questionText || '-',
+                "Answer": r.answer || '-', 
+                "Instructions": r.instructions || '-'
             }));
             const ws = XLSX.utils.json_to_sheet(dataToExport, {header: header}); 
             const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Results");
             XLSX.writeFile(wb, filename);
         }
-        
-        // Event listeners for export buttons
-        exportCsv.addEventListener('click', () => {
-            if (extractedData.length > 0) exportToCsv('llm_structured_results.csv', extractedData);
+        exportCsv.addEventListener('click', () => { 
+             if (extractedData.length > 0) exportToCsv('llm_structured_results.csv', extractedData);
             else showError("No data to export.");
         });
-        exportExcel.addEventListener('click', () => {
+        exportExcel.addEventListener('click', () => { 
             if (extractedData.length > 0) exportToExcel('llm_structured_results.xlsx', extractedData);
             else showError("No data to export.");
         });
 
+        function handleManualInputProcessing() {
+            const manualText = manualMarkdownInputEl.value;
+            const currentProcessingMode = processingModeSelectEl.value;
+            if (DEBUG_MODE) console.log("Process Manual Input. Mode:", currentProcessingMode, "Text length:", manualText.length);
+
+            if (!manualText || manualText.trim() === '') {
+                showError("Please paste LLM output into the manual input area.");
+                return;
+            }
+            hideError(); 
+            llmLiveOutputContainerEl.classList.add('hidden'); 
+            processingIndicator.classList.add('hidden'); 
+            resultSection.classList.add('hidden'); 
+
+            try {
+                let cleanedManualText = manualText;
+                if (currentProcessingMode === 'directStructure') {
+                    // Optional: clean manual markdown too if desired, similar to callLlmToStructureData
+                    const markdownTableMatch = cleanedManualText.match(/(\|(?:[^\r\n\|]+\|)+[\r\n]+)((?:\|(?:[-:]+\|)+[\r\n]+))((?:\|(?:[^\r\n\|]+\|)+[\r\n]*)+)/);
+                    if (markdownTableMatch && markdownTableMatch[0]) cleanedManualText = markdownTableMatch[0];
+                    
+                    extractedData = parseMarkdownTableToObjects(cleanedManualText);
+                } else if (currentProcessingMode === 'tagAndAssemble') {
+                    if (DEBUG_MODE) console.log("Attempting to parse manual input as JSON for tagging.")
+                    let jsonStringToParse = cleanedManualText;
+                    const jsonMatch = jsonStringToParse.match(/(\[[\s\S]*\])/); 
+                    if (jsonMatch && jsonMatch[1]) jsonStringToParse = jsonMatch[1];
+
+                    const taggedDataArray = JSON.parse(jsonStringToParse); 
+                    if (!Array.isArray(taggedDataArray)) throw new Error("Manual input for 'Tag & Assemble' mode was not a valid JSON array.");
+                    extractedData = assembleTableFromTaggedData(taggedDataArray);
+                } else {
+                    showError("Invalid processing mode selected for manual input.");
+                    extractedData = []; 
+                }
+                
+                if (DEBUG_MODE) console.log("Parsed objects from Manual Input:", extractedData);
+                displayResults(extractedData);                 
+                if (extractedData.length > 0) {
+                    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } catch (parseError) {
+                console.error("Error parsing manual input:", parseError);
+                showError(`Error parsing manual input: ${parseError.message}. Ensure format matches selected mode.`);
+                extractedData = [];
+                displayResults(extractedData); 
+            }
+        }
     </script>
 </body>
 </html>
