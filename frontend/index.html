@@ -360,30 +360,41 @@ The final output must be formatted as a plain text Markdown table.
 Crucially: Ensure the output is ONLY the raw Markdown syntax for the table itself. Do absolutely NOT wrap the table in code fences (\`\`\`), format it as a code block, or use any formatting other than the plain text Markdown table structure. Do not include any introductory phrases like "Okay, here is the table:" or any concluding remarks.
 `;
 
-        const TAGGING_PROMPT = `You are an expert text analysis assistant. Your task is to analyze the provided TEXT CONTENT, which has been extracted from an exam paper.
-Identify distinct segments of the text and tag each segment with ONLY ONE of the following types: 'SECTION', 'QUESTION', 'ANSWER', or 'INSTRUCTION'.
-- 'SECTION': A major section heading (e.g., "Section A: Grammar", "Part 1").
-- 'QUESTION': The full text of a question, including its number (e.g., "Q.1 What is the capital of France?").
-- 'ANSWER': The answer corresponding to a question.
-- 'INSTRUCTION': Instructions for a question, a set of questions, or a section (e.g., "Choose the best option.", "Write your answers in the space provided.").
+        const TAGGING_PROMPT = `You are a text segmentation assistant. Your task is to analyze the provided exam paper TEXT and divide it into distinct segments.
+For each segment, assign one of the following types: 'SECTION_TITLE', 'INSTRUCTION', 'QUESTION_CONTENT', 'ANSWER_KEY_ENTRY', or 'PAGE_METADATA'.
 
-Your output MUST be a valid JSON array of objects. Each object in the array must have exactly two keys:
-1.  "type": A string, one of 'SECTION', 'QUESTION', 'ANSWER', 'INSTRUCTION'.
-2.  "content": A string, the full text content of the identified segment.
+Your output MUST be a valid JSON array of objects. Each object must have "type" and "content" keys.
 
-Example Output:
+TAG DEFINITIONS:
+1.  'SECTION_TITLE': The main title or heading of a new section.
+    Example: "Section A: Multiple Choice Questions", "Answer Key"
+2.  'INSTRUCTION': Instructions for students.
+    Example: "Read each question carefully.", "For questions 1-10, choose the best answer."
+3.  'QUESTION_CONTENT': The entire text block for a single question, including its number, the question itself, and all its options if it's multiple choice.
+    Example: "1. What is the capital of France?\n(A) London\n(B) Paris\n(C) Berlin"
+4.  'ANSWER_KEY_ENTRY': A single line or entry from the answer key section, usually containing a question number and its answer.
+    Example: "1. B", "Q2: Paris", "11) Option A"
+5.  'PAGE_METADATA': Text that is not part of a section, instruction, question, or answer key entry. This includes school names, page numbers, "End of Paper", student name/class fields, etc.
+    Example: "St. Hilda's Primary School", "Page 5 of 12", "Name: _________"
+
+OUTPUT FORMAT (JSON ARRAY ONLY):
 [
-  { "type": "SECTION", "content": "Section A: Multiple Choice" },
-  { "type": "INSTRUCTION", "content": "For each question, select the best answer." },
-  { "type": "QUESTION", "content": "Q.1 What is 2+2?" },
-  { "type": "ANSWER", "content": "4" }
+  { "type": "PAGE_METADATA", "content": "BP-225\nSt Hilda’s Primary School..." },
+  { "type": "SECTION_TITLE", "content": "Section A: 20 Marks" },
+  { "type": "INSTRUCTION", "content": "For questions 1 to 10, write your answer (1, 2, 3 or 4) in the bracket provided. [2 marks each)" },
+  { "type": "QUESTION_CONTENT", "content": "1 Which ane of the following is a matter?\n\n(1) air\n(2) heat\n(3) shadow\n(4) lightning" },
+  // ... more segments ...
+  { "type": "SECTION_TITLE", "content": "Simplified Answer Key." },
+  { "type": "ANSWER_KEY_ENTRY", "content": "1] 4" }
 ]
 
 IMPORTANT:
-- Output ONLY the JSON array. Do not include any other text, explanation, or conversational elements before or after the JSON array.
-- Ensure the JSON is well-formed.
-- Tag contiguous blocks of text. Do not break a single question or instruction into multiple tagged segments unless they are truly distinct items.
-- If a line contains both a question number and the question text, tag it all as 'QUESTION'.
+- Respond with ONLY the JSON array. No other text, comments, or explanations (like <think> tags).
+- Ensure the JSON is perfectly well-formed.
+- Capture the FULL and EXACT text for each segment as it appears in the document.
+- Process the document sequentially.
+- If a segment of text could arguably fit multiple types, choose the most specific and encompassing one (e.g., prefer 'QUESTION_CONTENT' over 'INSTRUCTION' if it's clearly a question with embedded instructions for that question only).
+- Be consistent with the defined "type" strings.
 `;
 
         document.addEventListener('DOMContentLoaded', () => {
